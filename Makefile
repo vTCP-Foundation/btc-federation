@@ -18,6 +18,8 @@ CLI_ARGS = -rpcconnect=$(RPC_HOST) -rpcport=$(RPC_PORT) -rpcuser=$(RPC_USER) -rp
 
 # Mining settings
 MINER_THREADS = 1
+MINER_KEY_FILE = miner.key
+MINER_ADDR_FILE = miner.address
 
 .PHONY: help btc-setup btc-start btc-stop btc-reset btc-miner-start btc-miner-stop btc-status btc-logs
 
@@ -101,7 +103,7 @@ btc-start:
 	@if ps aux | grep -v grep | grep "bitcoind.*bitcoin-fastnet.conf" > /dev/null; then \
 		echo "Bitcoin node is already running"; \
 	else \
-		$(BITCOIND) -conf=$(BITCOIN_CONF) -daemon; \
+		$(BITCOIND) -conf=$(BITCOIN_CONF) -deprecatedrpc=create_bdb -daemon; \
 		echo "Waiting for node to start..."; \
 		sleep 5; \
 		$(BITCOIN_CLI) $(CLI_ARGS) getblockchaininfo > /dev/null && echo "Bitcoin node started successfully" || echo "Failed to start Bitcoin node"; \
@@ -124,6 +126,7 @@ btc-stop:
 btc-reset: btc-stop
 	@echo "Resetting blockchain data..."
 	@rm -rf $(BITCOIN_DATA)/regtest
+	@rm -f .btc/miner.pid .btc/miner.log
 	@echo "Starting fresh Bitcoin node..."
 	@$(MAKE) btc-start
 
@@ -133,8 +136,13 @@ btc-miner-start:
 	@if [ -f .btc/miner.pid ] && kill -0 $$(cat .btc/miner.pid) 2>/dev/null; then \
 		echo "Miner is already running (PID: $$(cat .btc/miner.pid))"; \
 	else \
-		$(BITCOIN_CLI) $(CLI_ARGS) createwallet "miner" 2>/dev/null || true; \
-		ADDR=$$($(BITCOIN_CLI) $(CLI_ARGS) getnewaddress); \
+		$(BITCOIN_CLI) $(CLI_ARGS) createwallet "miner" false false "" false false true 2>/dev/null || true; \
+		if [ ! -f $(MINER_KEY_FILE) ]; then \
+			echo "cMahea7zqjxrtgAbB7LSGbcQUr1uX1ojuat9jZodMN87JcbXMTcA" > $(MINER_KEY_FILE); \
+			echo "bcrt1q0szhffryrh8s5ltv8ay4874gx3qs3q3d76chlq" > $(MINER_ADDR_FILE); \
+		fi; \
+		$(BITCOIN_CLI) $(CLI_ARGS) importprivkey "$$(cat $(MINER_KEY_FILE))" "fastnet-miner" false 2>/dev/null || true; \
+		ADDR=$$(cat $(MINER_ADDR_FILE)); \
 		echo "Mining to address: $$ADDR"; \
 		nohup bash -c 'while true; do $(BITCOIN_CLI) $(CLI_ARGS) generatetoaddress 1 '$$ADDR' > /dev/null 2>&1; sleep 10; done' > .btc/miner.log 2>&1 & \
 		echo $$! > .btc/miner.pid; \

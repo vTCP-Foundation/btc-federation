@@ -30,6 +30,12 @@ Create a new wallet for your development work:
 .btc/node/bin/bitcoin-cli -rpcconnect=127.0.0.1 -rpcport=18443 -rpcuser=fastnet -rpcpassword=fastnet123 createwallet "development"
 ```
 
+**Note**: For operations requiring private key imports (like `importprivkey`), you need to create a legacy wallet:
+
+```bash
+.btc/node/bin/bitcoin-cli -rpcconnect=127.0.0.1 -rpcport=18443 -rpcuser=fastnet -rpcpassword=fastnet123 createwallet "development" false false "" false false true
+```
+
 Load an existing wallet:
 
 ```bash
@@ -248,6 +254,33 @@ Get help for a specific command:
 .btc/node/bin/bitcoin-cli -rpcconnect=127.0.0.1 -rpcport=18443 -rpcuser=fastnet -rpcpassword=fastnet123 help sendtoaddress
 ```
 
+## Legacy Wallet Support
+
+This Bitcoin Fastnet setup uses deprecated BDB wallet functionality to support private key import operations required for mining. The node is started with the `-deprecatedrpc=create_bdb` flag to enable legacy wallet creation.
+
+### Why Legacy Wallets?
+
+- **Private Key Import**: The `importprivkey` command only works with legacy (BDB) wallets
+- **Mining Setup**: The miner requires importing a pre-generated private key for block rewards
+- **Development Testing**: Legacy wallets provide full control over keys for testing scenarios
+
+### Legacy Wallet Parameters
+
+When creating a legacy wallet, use these parameters:
+
+```bash
+createwallet "wallet_name" false false "" false false true
+```
+
+Parameters explanation:
+- `wallet_name`: Name of the wallet
+- `false`: Don't disable private keys
+- `false`: Don't create a blank wallet
+- `""`: No passphrase
+- `false`: Don't avoid address reuse
+- `false`: Don't create descriptors-only wallet
+- `true`: Create legacy (BDB) wallet
+
 ## Security Note
 
-This setup is for development purposes only. The RPC credentials and setup are not secure and should never be used in production environments. 
+This setup is for development purposes only. The RPC credentials, deprecated wallet functionality, and setup are not secure and should never be used in production environments. 
