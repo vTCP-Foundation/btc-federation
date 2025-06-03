@@ -98,7 +98,7 @@ btc-setup:
 # Start Bitcoin node
 btc-start:
 	@echo "Starting Bitcoin node..."
-	@if pgrep -f "bitcoind.*bitcoin-fastnet.conf" > /dev/null; then \
+	@if ps aux | grep -v grep | grep "bitcoind.*bitcoin-fastnet.conf" > /dev/null; then \
 		echo "Bitcoin node is already running"; \
 	else \
 		$(BITCOIND) -conf=$(BITCOIN_CONF) -daemon; \
@@ -110,7 +110,7 @@ btc-start:
 # Stop Bitcoin node
 btc-stop:
 	@echo "Stopping Bitcoin node..."
-	@if pgrep -f "bitcoind.*bitcoin-fastnet.conf" > /dev/null; then \
+	@if ps aux | grep -v grep | grep "bitcoind.*bitcoin-fastnet.conf" > /dev/null; then \
 		$(BITCOIN_CLI) $(CLI_ARGS) stop 2>/dev/null || true; \
 		echo "Waiting for node to stop..."; \
 		sleep 3; \
@@ -161,7 +161,7 @@ btc-miner-stop:
 # Show node status
 btc-status:
 	@echo "Bitcoin Node Status:"
-	@if pgrep -f "bitcoind.*bitcoin-fastnet.conf" > /dev/null; then \
+	@if ps aux | grep -v grep | grep "bitcoind.*bitcoin-fastnet.conf" > /dev/null; then \
 		echo "Node: Running"; \
 		$(BITCOIN_CLI) $(CLI_ARGS) getblockchaininfo 2>/dev/null | grep -E '"blocks"|"difficulty"' || echo "Node not responding"; \
 	else \
