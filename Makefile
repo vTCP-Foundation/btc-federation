@@ -19,10 +19,11 @@ CLI_ARGS = -rpcconnect=$(RPC_HOST) -rpcport=$(RPC_PORT) -rpcuser=$(RPC_USER) -rp
 # Mining settings
 MINER_THREADS = 1
 
-.PHONY: help btc-start btc-stop btc-reset btc-miner-start btc-miner-stop btc-status btc-logs
+.PHONY: help btc-setup btc-start btc-stop btc-reset btc-miner-start btc-miner-stop btc-status btc-logs
 
 help:
 	@echo "Bitcoin Fastnet Local Node Commands:"
+	@echo "  btc-setup        - Initial setup of Bitcoin node"
 	@echo "  btc-start        - Start Bitcoin node"
 	@echo "  btc-stop         - Stop Bitcoin node"
 	@echo "  btc-reset        - Restart with new genesis block"
@@ -30,6 +31,69 @@ help:
 	@echo "  btc-miner-stop   - Stop miner"
 	@echo "  btc-status       - Show node status"
 	@echo "  btc-logs         - Show node logs"
+
+# Initial setup of Bitcoin node
+btc-setup:
+	@echo "Setting up Bitcoin node..."
+	@mkdir -p $(BITCOIN_DIR)
+	@mkdir -p $(BITCOIN_DATA)
+	@if [ ! -f $(BITCOIND) ]; then \
+		echo "Downloading Bitcoin Core v29.0..."; \
+		cd $(PROJECT_ROOT)/.btc && \
+		wget -q https://bitcoincore.org/bin/bitcoin-core-29.0/bitcoin-29.0-x86_64-linux-gnu.tar.gz && \
+		echo "Extracting Bitcoin Core..."; \
+		tar -xzf bitcoin-29.0-x86_64-linux-gnu.tar.gz && \
+		mv bitcoin-29.0/* node/ && \
+		rm -rf bitcoin-29.0 bitcoin-29.0-x86_64-linux-gnu.tar.gz && \
+		echo "Bitcoin Core v29.0 installed successfully"; \
+	else \
+		echo "Bitcoin Core binaries already exist at $(BITCOIN_DIR)"; \
+	fi
+	@if [ ! -f $(BITCOIN_CONF) ]; then \
+		echo "Creating Bitcoin configuration file..."; \
+		echo "# Bitcoin Core configuration for fastnet (regtest with fast blocks)" > $(BITCOIN_CONF); \
+		echo "# Task: btc-federation-1 - Bitcoin Fastnet Local Node Setup" >> $(BITCOIN_CONF); \
+		echo "" >> $(BITCOIN_CONF); \
+		echo "# Network settings" >> $(BITCOIN_CONF); \
+		echo "regtest=1" >> $(BITCOIN_CONF); \
+		echo "fallbackfee=0.0002" >> $(BITCOIN_CONF); \
+		echo "" >> $(BITCOIN_CONF); \
+		echo "# RPC settings - localhost only access" >> $(BITCOIN_CONF); \
+		echo "server=1" >> $(BITCOIN_CONF); \
+		echo "rpcuser=fastnet" >> $(BITCOIN_CONF); \
+		echo "rpcpassword=fastnet123" >> $(BITCOIN_CONF); \
+		echo "" >> $(BITCOIN_CONF); \
+		echo "# Memory and performance settings" >> $(BITCOIN_CONF); \
+		echo "dbcache=100" >> $(BITCOIN_CONF); \
+		echo "maxmempool=50" >> $(BITCOIN_CONF); \
+		echo "" >> $(BITCOIN_CONF); \
+		echo "# Logging settings" >> $(BITCOIN_CONF); \
+		echo "debug=0" >> $(BITCOIN_CONF); \
+		echo "printtoconsole=1" >> $(BITCOIN_CONF); \
+		echo "" >> $(BITCOIN_CONF); \
+		echo "# Disable external connections in regtest" >> $(BITCOIN_CONF); \
+		echo "listen=0" >> $(BITCOIN_CONF); \
+		echo "discover=0" >> $(BITCOIN_CONF); \
+		echo "upnp=0" >> $(BITCOIN_CONF); \
+		echo "natpmp=0" >> $(BITCOIN_CONF); \
+		echo "" >> $(BITCOIN_CONF); \
+		echo "# Data directory (relative to project root)" >> $(BITCOIN_CONF); \
+		echo "datadir=.btc/data" >> $(BITCOIN_CONF); \
+		echo "" >> $(BITCOIN_CONF); \
+		echo "# Regtest-specific settings" >> $(BITCOIN_CONF); \
+		echo "[regtest]" >> $(BITCOIN_CONF); \
+		echo "rpcbind=127.0.0.1:18443" >> $(BITCOIN_CONF); \
+		echo "rpcallowip=127.0.0.1" >> $(BITCOIN_CONF); \
+		echo "# Generate blocks every ~10 seconds" >> $(BITCOIN_CONF); \
+		echo "blocktime=10" >> $(BITCOIN_CONF); \
+		echo "# Block generation settings" >> $(BITCOIN_CONF); \
+		echo "txconfirmtarget=1" >> $(BITCOIN_CONF); \
+		echo "Configuration file created at $(BITCOIN_CONF)"; \
+	else \
+		echo "Configuration file already exists at $(BITCOIN_CONF)"; \
+	fi
+	@echo "Bitcoin node setup completed successfully"
+	@echo "Run 'make btc-start' to start the node"
 
 # Start Bitcoin node
 btc-start:
