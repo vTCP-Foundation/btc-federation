@@ -1,0 +1,15 @@
+node:
+  private_key: ""  # Will be generated automatically if empty
+
+network:
+  addresses:
+    - "/ip4/0.0.0.0/udp/9000/quic"
+    - "/ip6/::/udp/9000/quic"
+
+peers:
+  exchange_interval: "30s"
+  connection_timeout: "10s"
+
+logging:
+  level: "info"  # debug, info, warn, error
+  format: "json"  # json, text
