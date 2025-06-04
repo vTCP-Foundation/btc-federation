@@ -188,6 +188,12 @@ func validateMultiaddr(addr string) error {
 	// Basic validation for common patterns
 	// This is a simplified validation - in production you'd use libp2p's multiaddr parser
 	patterns := []string{
+		// TCP patterns
+		`^/ip4/[0-9.]+/tcp/[0-9]+$`,
+		`^/ip6/.*/tcp/[0-9]+$`,
+		`^/dns4/.+/tcp/[0-9]+$`,
+		`^/dns6/.+/tcp/[0-9]+$`,
+		// QUIC patterns (for future use)
 		`^/ip4/[0-9.]+/udp/[0-9]+/quic$`,
 		`^/ip6/.*/udp/[0-9]+/quic$`,
 		`^/dns4/.+/udp/[0-9]+/quic$`,

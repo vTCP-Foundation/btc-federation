@@ -40,8 +40,8 @@ func DefaultConfig() *Config {
 		},
 		Network: NetworkConfig{
 			Addresses: []string{
-				"/ip4/0.0.0.0/udp/9000/quic",
-				"/ip6/::/udp/9000/quic",
+				"/ip4/0.0.0.0/tcp/9000",
+				"/ip6/::/tcp/9000",
 			},
 		},
 		Peers: PeersConfig{
