@@ -1,0 +1,533 @@
+{
+  "generated_at": "2025-06-10T09:53:36.398839182+03:00",
+  "test_environment": {
+    "cpu_cores": 20,
+    "os": "linux",
+    "go_version": "go1.24.3",
+    "bitcoin_network": "regtest",
+    "test_timestamp": "2025-06-10T09:53:36+03:00"
+  },
+  "musig2_results": [
+    {
+      "participant_count": 64,
+      "threshold_count": 32,
+      "multisig_address_creation": {
+        "duration": 68562382,
+        "duration_ms": 68,
+        "success": true
+      },
+      "transaction_signing": {
+        "duration": 3859787,
+        "duration_ms": 3,
+        "success": true
+      },
+      "overall_workflow": {
+        "duration": 310137962,
+        "duration_ms": 310,
+        "success": true
+      },
+      "blockchain_transactions": [
+        {
+          "type": "miner_to_multisig",
+          "tx_hash": "9a358142ed8a98bdd219cf04610383e23bf4b99442809006f4bd2584d8eace10",
+          "from_address": "miner",
+          "to_address": "bcrt1q9dpuuv8ag3phzwxnrnxxdd99vyp70v5nddmqvg",
+          "amount": 1,
+          "balance_before": 1550,
+          "balance_after": 1999.9989718,
+          "confirmations": 1
+        },
+        {
+          "type": "multisig_to_miner",
+          "tx_hash": "849400a3e379cb7537400a542b1799212dc5e2565d0be94f14c3f9224a9c6ff1",
+          "from_address": "bcrt1q9dpuuv8ag3phzwxnrnxxdd99vyp70v5nddmqvg",
+          "to_address": "miner",
+          "amount": 0.999,
+          "balance_before": 1,
+          "balance_after": 0,
+          "confirmations": 1
+        }
+      ],
+      "meets_performance_requirement": true,
+      "resource_usage": {
+        "peak_memory_mb": 2.5750656127929688,
+        "cpu_utilization": 0.64,
+        "network_latency_ms": 320
+      }
+    },
+    {
+      "participant_count": 128,
+      "threshold_count": 64,
+      "multisig_address_creation": {
+        "duration": 59945477,
+        "duration_ms": 59,
+        "success": true
+      },
+      "transaction_signing": {
+        "duration": 7617271,
+        "duration_ms": 7,
+        "success": true
+      },
+      "overall_workflow": {
+        "duration": 330585673,
+        "duration_ms": 330,
+        "success": true
+      },
+      "blockchain_transactions": [
+        {
+          "type": "miner_to_multisig",
+          "tx_hash": "896a5955029e8c1db3f1ddaea7a705eb197ad3bdab7ee686fa8f03db594d2b0d",
+          "from_address": "miner",
+          "to_address": "bcrt1qhxyd4ayclk28vmz2htgyddm9x8uzc2av065vem",
+          "amount": 1,
+          "balance_before": 1500,
+          "balance_after": 2049.9989718,
+          "confirmations": 1
+        },
+        {
+          "type": "multisig_to_miner",
+          "tx_hash": "bc0ba7059382a0ef85dad709b4a37a841e1729a3424c99ec3ed93a4b8d4f5f97",
+          "from_address": "bcrt1qhxyd4ayclk28vmz2htgyddm9x8uzc2av065vem",
+          "to_address": "miner",
+          "amount": 0.999,
+          "balance_before": 1,
+          "balance_after": 0,
+          "confirmations": 1
+        }
+      ],
+      "meets_performance_requirement": true,
+      "resource_usage": {
+        "peak_memory_mb": 1.8441085815429688,
+        "cpu_utilization": 1.28,
+        "network_latency_ms": 640
+      }
+    },
+    {
+      "participant_count": 256,
+      "threshold_count": 128,
+      "multisig_address_creation": {
+        "duration": 51484005,
+        "duration_ms": 51,
+        "success": true
+      },
+      "transaction_signing": {
+        "duration": 10268315,
+        "duration_ms": 10,
+        "success": true
+      },
+      "overall_workflow": {
+        "duration": 272246599,
+        "duration_ms": 272,
+        "success": true
+      },
+      "blockchain_transactions": [
+        {
+          "type": "miner_to_multisig",
+          "tx_hash": "d4f8b617ea94a09dd7be5a88b15b731c21892047aed246cf3db74a0befe8bcc9",
+          "from_address": "miner",
+          "to_address": "bcrt1qlu5l53rl9y2al9w8dnq56upxltgcdddk5j876y",
+          "amount": 1,
+          "balance_before": 1600,
+          "balance_after": 1949.9989718,
+          "confirmations": 1
+        },
+        {
+          "type": "multisig_to_miner",
+          "tx_hash": "0999bd86ef4811b388158629d349ecf6bbc8d939043a2db6c30dfc5f66babd33",
+          "from_address": "bcrt1qlu5l53rl9y2al9w8dnq56upxltgcdddk5j876y",
+          "to_address": "miner",
+          "amount": 0.999,
+          "balance_before": 1,
+          "balance_after": 0,
+          "confirmations": 1
+        }
+      ],
+      "meets_performance_requirement": true,
+      "resource_usage": {
+        "peak_memory_mb": 2.8868179321289062,
+        "cpu_utilization": 2.56,
+        "network_latency_ms": 1280
+      }
+    },
+    {
+      "participant_count": 512,
+      "threshold_count": 256,
+      "multisig_address_creation": {
+        "duration": 97774076,
+        "duration_ms": 97,
+        "success": true
+      },
+      "transaction_signing": {
+        "duration": 25622663,
+        "duration_ms": 25,
+        "success": true
+      },
+      "overall_workflow": {
+        "duration": 340103158,
+        "duration_ms": 340,
+        "success": true
+      },
+      "blockchain_transactions": [
+        {
+          "type": "miner_to_multisig",
+          "tx_hash": "9fd0d9190d5b3602072250159014df5430330297e6567dca1a0144c349539880",
+          "from_address": "miner",
+          "to_address": "bcrt1qcwryt7k5s0qafj42qz95gagw5c6tq2ykzpraes",
+          "amount": 1,
+          "balance_before": 1550,
+          "balance_after": 1849.9989718,
+          "confirmations": 1
+        },
+        {
+          "type": "multisig_to_miner",
+          "tx_hash": "b79560341484bd6c2bda9aea742d73546d3e609bb351c813ac1918599c57bbcd",
+          "from_address": "bcrt1qcwryt7k5s0qafj42qz95gagw5c6tq2ykzpraes",
+          "to_address": "miner",
+          "amount": 0.999,
+          "balance_before": 1,
+          "balance_after": 0,
+          "confirmations": 1
+        }
+      ],
+      "meets_performance_requirement": true,
+      "resource_usage": {
+        "peak_memory_mb": 2.1361312866210938,
+        "cpu_utilization": 5.12,
+        "network_latency_ms": 2560
+      }
+    }
+  ],
+  "frost_results": [
+    {
+      "participant_count": 64,
+      "threshold_count": 32,
+      "multisig_address_creation": {
+        "duration": 169900484,
+        "duration_ms": 169,
+        "success": true
+      },
+      "transaction_signing": {
+        "duration": 10799780,
+        "duration_ms": 10,
+        "success": true
+      },
+      "overall_workflow": {
+        "duration": 446235966,
+        "duration_ms": 446,
+        "success": true
+      },
+      "blockchain_transactions": [
+        {
+          "type": "miner_to_multisig",
+          "tx_hash": "de455ee47d8e06336bb3ff93e9619b398ed9fdc07bb921b3f5c25bf65c481e2a",
+          "from_address": "miner",
+          "to_address": "bcrt1qtvqx9vs4f5mfrz8nd8qgsvjrynkum93hlssezq",
+          "amount": 1,
+          "balance_before": 1550,
+          "balance_after": 2049.9989718,
+          "confirmations": 1
+        },
+        {
+          "type": "multisig_to_miner",
+          "tx_hash": "9ab529a8783ff9a888dea2ee55c160d765686bd9d8cf5c99a00702c31c1eb3bd",
+          "from_address": "bcrt1qtvqx9vs4f5mfrz8nd8qgsvjrynkum93hlssezq",
+          "to_address": "miner",
+          "amount": 0.999,
+          "balance_before": 1,
+          "balance_after": 0,
+          "confirmations": 1
+        }
+      ],
+      "meets_performance_requirement": true,
+      "resource_usage": {
+        "peak_memory_mb": 1.3038330078125,
+        "cpu_utilization": 0.64,
+        "network_latency_ms": 320
+      }
+    },
+    {
+      "participant_count": 128,
+      "threshold_count": 64,
+      "multisig_address_creation": {
+        "duration": 974734291,
+        "duration_ms": 974,
+        "success": true
+      },
+      "transaction_signing": {
+        "duration": 16466013,
+        "duration_ms": 16,
+        "success": true
+      },
+      "overall_workflow": {
+        "duration": 1219454017,
+        "duration_ms": 1219,
+        "success": true
+      },
+      "blockchain_transactions": [
+        {
+          "type": "miner_to_multisig",
+          "tx_hash": "937447449c0f8a0ac0e88f0cf3524d5064c31437014a9cf9ce0c61bf670d94b7",
+          "from_address": "miner",
+          "to_address": "bcrt1q4e6025w2qmdnpgsr6wxssnfr9t7j4zawcjr72l",
+          "amount": 1,
+          "balance_before": 2275,
+          "balance_after": 2424.9989718,
+          "confirmations": 1
+        },
+        {
+          "type": "multisig_to_miner",
+          "tx_hash": "bf224c9ec2eeb1c4e8b1c12cb59eff5985f57254e8668e712b589bd07d19add4",
+          "from_address": "bcrt1q4e6025w2qmdnpgsr6wxssnfr9t7j4zawcjr72l",
+          "to_address": "miner",
+          "amount": 0.999,
+          "balance_before": 1,
+          "balance_after": 0,
+          "confirmations": 1
+        }
+      ],
+      "meets_performance_requirement": true,
+      "resource_usage": {
+        "peak_memory_mb": 5.4839935302734375,
+        "cpu_utilization": 1.28,
+        "network_latency_ms": 640
+      }
+    },
+    {
+      "participant_count": 256,
+      "threshold_count": 128,
+      "multisig_address_creation": {
+        "duration": 9258307457,
+        "duration_ms": 9258,
+        "success": true
+      },
+      "transaction_signing": {
+        "duration": 38201564,
+        "duration_ms": 38,
+        "success": true
+      },
+      "overall_workflow": {
+        "duration": 9559750150,
+        "duration_ms": 9559,
+        "success": true
+      },
+      "blockchain_transactions": [
+        {
+          "type": "miner_to_multisig",
+          "tx_hash": "4fe01b22f09da04dbbd46fe49eb2f14d6d9f596e657f802631ae42102607cc4e",
+          "from_address": "miner",
+          "to_address": "bcrt1q442leqwg65n873rmvfjuc3vw30l4qnk40frhd8",
+          "amount": 1,
+          "balance_before": 4075,
+          "balance_after": 4374.9989718,
+          "confirmations": 1
+        },
+        {
+          "type": "multisig_to_miner",
+          "tx_hash": "90ef064d3fafe181a6ccb0e641774c73ce6e7edf99031f8c3e679c53a5656e0b",
+          "from_address": "bcrt1q442leqwg65n873rmvfjuc3vw30l4qnk40frhd8",
+          "to_address": "miner",
+          "amount": 0.999,
+          "balance_before": 1,
+          "balance_after": 0,
+          "confirmations": 1
+        }
+      ],
+      "meets_performance_requirement": true,
+      "resource_usage": {
+        "peak_memory_mb": 17.19257354736328,
+        "cpu_utilization": 2.56,
+        "network_latency_ms": 1280
+      }
+    },
+    {
+      "participant_count": 512,
+      "threshold_count": 256,
+      "multisig_address_creation": {
+        "duration": 63822684773,
+        "duration_ms": 63822,
+        "success": true
+      },
+      "transaction_signing": {
+        "duration": 129180994,
+        "duration_ms": 129,
+        "success": true
+      },
+      "overall_workflow": {
+        "duration": 64623151922,
+        "duration_ms": 64623,
+        "success": true
+      },
+      "blockchain_transactions": [
+        {
+          "type": "miner_to_multisig",
+          "tx_hash": "1d32f5a99e33af9eb9f0f92a33104dbfd5ffe8efe2012e3b66d4ede457c4f29c",
+          "from_address": "miner",
+          "to_address": "bcrt1qa2x9lzllpmzn9qg40dhznvskntu8570ajs2u8h",
+          "amount": 1,
+          "balance_before": 9243.75,
+          "balance_after": 9270.3114718,
+          "confirmations": 1
+        },
+        {
+          "type": "multisig_to_miner",
+          "tx_hash": "473d9ed3d2317598c219b35cedb4d69304886892f0c4fabf39d74c6686376610",
+          "from_address": "bcrt1qa2x9lzllpmzn9qg40dhznvskntu8570ajs2u8h",
+          "to_address": "miner",
+          "amount": 0.999,
+          "balance_before": 1,
+          "balance_after": 0,
+          "confirmations": 1
+        }
+      ],
+      "meets_performance_requirement": true,
+      "resource_usage": {
+        "peak_memory_mb": 57.92527770996094,
+        "cpu_utilization": 5.12,
+        "network_latency_ms": 2560
+      }
+    }
+  ],
+  "comparison": {
+    "address_creation_comparison": [
+      {
+        "participant_count": 64,
+        "musig2_duration": 68562382,
+        "frost_duration": 169900484,
+        "musig2_duration_ms": 68,
+        "frost_duration_ms": 169,
+        "performance_ratio": 0.40236686390532544,
+        "recommended_scheme": "MuSig2"
+      },
+      {
+        "participant_count": 128,
+        "musig2_duration": 59945477,
+        "frost_duration": 974734291,
+        "musig2_duration_ms": 59,
+        "frost_duration_ms": 974,
+        "performance_ratio": 0.060574948665297744,
+        "recommended_scheme": "MuSig2"
+      },
+      {
+        "participant_count": 256,
+        "musig2_duration": 51484005,
+        "frost_duration": 9258307457,
+        "musig2_duration_ms": 51,
+        "frost_duration_ms": 9258,
+        "performance_ratio": 0.005508749189889825,
+        "recommended_scheme": "MuSig2"
+      },
+      {
+        "participant_count": 512,
+        "musig2_duration": 97774076,
+        "frost_duration": 63822684773,
+        "musig2_duration_ms": 97,
+        "frost_duration_ms": 63822,
+        "performance_ratio": 0.0015198520886214786,
+        "recommended_scheme": "MuSig2"
+      }
+    ],
+    "signing_comparison": [
+      {
+        "participant_count": 64,
+        "musig2_duration": 3859787,
+        "frost_duration": 10799780,
+        "musig2_duration_ms": 3,
+        "frost_duration_ms": 10,
+        "performance_ratio": 0.3,
+        "recommended_scheme": "MuSig2"
+      },
+      {
+        "participant_count": 128,
+        "musig2_duration": 7617271,
+        "frost_duration": 16466013,
+        "musig2_duration_ms": 7,
+        "frost_duration_ms": 16,
+        "performance_ratio": 0.4375,
+        "recommended_scheme": "MuSig2"
+      },
+      {
+        "participant_count": 256,
+        "musig2_duration": 10268315,
+        "frost_duration": 38201564,
+        "musig2_duration_ms": 10,
+        "frost_duration_ms": 38,
+        "performance_ratio": 0.2631578947368421,
+        "recommended_scheme": "MuSig2"
+      },
+      {
+        "participant_count": 512,
+        "musig2_duration": 25622663,
+        "frost_duration": 129180994,
+        "musig2_duration_ms": 25,
+        "frost_duration_ms": 129,
+        "performance_ratio": 0.1937984496124031,
+        "recommended_scheme": "MuSig2"
+      }
+    ],
+    "scalability_analysis": {
+      "musig2_linear_scaling": true,
+      "frost_linear_scaling": false,
+      "musig2_complexity_factor": 0.13709677419354838,
+      "frost_complexity_factor": 18.11182735426009,
+      "max_recommended_participants": 256
+    }
+  },
+  "recommendations": [
+    "Both MuSig2 and FROST show similar performance characteristics",
+    "Maximum recommended participant count: 512",
+    "Monitor memory usage for large participant counts",
+    "Consider network latency impact in distributed environments",
+    "Implement proper error handling and retry mechanisms",
+    "Use appropriate timeout values for multisig operations",
+    "Consider implementing participant subset selection for optimal performance"
+  ],
+  "summary": {
+    "total_configurations_tested": 8,
+    "all_tests_passed": true,
+    "best_performing_scheme": "MuSig2",
+    "worst_case_performance": 63951865767,
+    "best_case_performance": 61752320,
+    "recommended_configurations": [
+      {
+        "participant_count": 64,
+        "scheme": "MuSig2",
+        "reason": "Meets performance requirements"
+      },
+      {
+        "participant_count": 128,
+        "scheme": "MuSig2",
+        "reason": "Meets performance requirements"
+      },
+      {
+        "participant_count": 256,
+        "scheme": "MuSig2",
+        "reason": "Meets performance requirements"
+      },
+      {
+        "participant_count": 512,
+        "scheme": "MuSig2",
+        "reason": "Meets performance requirements"
+      },
+      {
+        "participant_count": 64,
+        "scheme": "FROST",
+        "reason": "Meets performance requirements"
+      },
+      {
+        "participant_count": 128,
+        "scheme": "FROST",
+        "reason": "Meets performance requirements"
+      },
+      {
+        "participant_count": 256,
+        "scheme": "FROST",
+        "reason": "Meets performance requirements"
+      },
+      {
+        "participant_count": 512,
+        "scheme": "FROST",
+        "reason": "Meets performance requirements"
+      }
+    ]
+  }
+}

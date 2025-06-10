@@ -1,0 +1,68 @@
+{
+  "test_configurations": [
+    {
+      "participants": 64,
+      "threshold": 32,
+      "description": "Small federation - 64 participants with 50% threshold"
+    },
+    {
+      "participants": 128,
+      "threshold": 64,
+      "description": "Medium federation - 128 participants with 50% threshold"
+    },
+    {
+      "participants": 256,
+      "threshold": 128,
+      "description": "Large federation - 256 participants with 50% threshold"
+    },
+    {
+      "participants": 512,
+      "threshold": 256,
+      "description": "Extra large federation - 512 participants with 50% threshold"
+    }
+  ],
+  "performance_requirements": {
+    "max_multisig_operation_duration_minutes": 2,
+    "max_address_creation_seconds": 30,
+    "max_transaction_signing_seconds": 90,
+    "confirmation_target": 1
+  },
+  "bitcoin_rpc": {
+    "host": "127.0.0.1",
+    "port": "18443",
+    "user": "fastnet",
+    "password": "fastnet123",
+    "wallet": "miner"
+  },
+  "test_parameters": {
+    "test_amount_btc": 1.0,
+    "blockchain_reset_required": true,
+    "generate_initial_blocks": 101,
+    "timeout_minutes": 45
+  },
+  "reporting": {
+    "generate_json_report": true,
+    "include_detailed_metrics": true,
+    "include_resource_usage": true,
+    "include_scalability_analysis": true,
+    "include_recommendations": true
+  },
+  "schemes": [
+    {
+      "name": "MuSig2",
+      "enabled": true,
+      "description": "MuSig2 multisig scheme with key aggregation"
+    },
+    {
+      "name": "FROST",
+      "enabled": true,
+      "description": "FROST threshold signature scheme with distributed key generation"
+    }
+  ],
+  "metadata": {
+    "task": "01-3-performance-metrics-and-report",
+    "version": "1.0.0",
+    "created": "2024-01-01",
+    "description": "Performance testing configuration for BTC Federation multisig schemes"
+  }
+} 

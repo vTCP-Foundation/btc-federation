@@ -1,0 +1,253 @@
+{
+  "test_timestamp": "2025-06-10T12:39:56.020386781+03:00",
+  "system_info": {
+    "cpu_cores": 20,
+    "test_duration": "2m0s",
+    "go_version": "",
+    "network_latency": "200ms"
+  },
+  "musig2_results": {
+    "128": {
+      "participant_count": 128,
+      "threshold_count": 64,
+      "metrics": {
+        "operation_duration": 31908705,
+        "memory_usage_mb": 0,
+        "cpu_cores": 20,
+        "participant_count": 128,
+        "threshold_count": 64,
+        "simulated_cores": 20,
+        "adjusted_duration": 204215712,
+        "network_latency_total": 25600000000,
+        "success_rate": 1,
+        "failure_count": 0,
+        "linear_scaling": false,
+        "complexity_factor": 6.4
+      },
+      "phase_breakdown": null,
+      "target_met": true,
+      "scaling_characteristics": {
+        "is_linear": false,
+        "complexity_growth": "Exponential",
+        "memory_scaling": "Low",
+        "recommended_limit": 64
+      }
+    },
+    "256": {
+      "participant_count": 256,
+      "threshold_count": 128,
+      "metrics": {
+        "operation_duration": 41513502,
+        "memory_usage_mb": 0,
+        "cpu_cores": 20,
+        "participant_count": 256,
+        "threshold_count": 128,
+        "simulated_cores": 20,
+        "adjusted_duration": 531372825,
+        "network_latency_total": 51200000000,
+        "success_rate": 1,
+        "failure_count": 0,
+        "linear_scaling": false,
+        "complexity_factor": 12.8
+      },
+      "phase_breakdown": null,
+      "target_met": true,
+      "scaling_characteristics": {
+        "is_linear": false,
+        "complexity_growth": "Exponential",
+        "memory_scaling": "Low",
+        "recommended_limit": 64
+      }
+    },
+    "512": {
+      "participant_count": 512,
+      "threshold_count": 256,
+      "metrics": {
+        "operation_duration": 57125414,
+        "memory_usage_mb": 0,
+        "cpu_cores": 20,
+        "participant_count": 512,
+        "threshold_count": 256,
+        "simulated_cores": 20,
+        "adjusted_duration": 1462410598,
+        "network_latency_total": 102400000000,
+        "success_rate": 1,
+        "failure_count": 0,
+        "linear_scaling": false,
+        "complexity_factor": 25.6
+      },
+      "phase_breakdown": null,
+      "target_met": true,
+      "scaling_characteristics": {
+        "is_linear": false,
+        "complexity_growth": "Exponential",
+        "memory_scaling": "Low",
+        "recommended_limit": 64
+      }
+    },
+    "64": {
+      "participant_count": 64,
+      "threshold_count": 32,
+      "metrics": {
+        "operation_duration": 24895076,
+        "memory_usage_mb": 0,
+        "cpu_cores": 20,
+        "participant_count": 64,
+        "threshold_count": 32,
+        "simulated_cores": 20,
+        "adjusted_duration": 79664243,
+        "network_latency_total": 12800000000,
+        "success_rate": 1,
+        "failure_count": 0,
+        "linear_scaling": false,
+        "complexity_factor": 3.2
+      },
+      "phase_breakdown": null,
+      "target_met": true,
+      "scaling_characteristics": {
+        "is_linear": false,
+        "complexity_growth": "Quadratic",
+        "memory_scaling": "Low",
+        "recommended_limit": 128
+      }
+    }
+  },
+  "frost_results": {
+    "128": {
+      "participant_count": 128,
+      "threshold_count": 64,
+      "metrics": {
+        "operation_duration": 1466448359,
+        "memory_usage_mb": 0,
+        "cpu_cores": 20,
+        "participant_count": 128,
+        "threshold_count": 64,
+        "simulated_cores": 20,
+        "adjusted_duration": 9385269497,
+        "network_latency_total": 25600000000,
+        "success_rate": 1,
+        "failure_count": 0,
+        "linear_scaling": false,
+        "complexity_factor": 6.4
+      },
+      "phase_breakdown": null,
+      "target_met": true,
+      "scaling_characteristics": {
+        "is_linear": false,
+        "complexity_growth": "Exponential",
+        "memory_scaling": "Low",
+        "recommended_limit": 64
+      }
+    },
+    "256": {
+      "participant_count": 256,
+      "threshold_count": 128,
+      "metrics": {
+        "operation_duration": 13675214145,
+        "memory_usage_mb": 0,
+        "cpu_cores": 20,
+        "participant_count": 256,
+        "threshold_count": 128,
+        "simulated_cores": 20,
+        "adjusted_duration": 175042741056,
+        "network_latency_total": 51200000000,
+        "success_rate": 1,
+        "failure_count": 0,
+        "linear_scaling": false,
+        "complexity_factor": 12.8
+      },
+      "phase_breakdown": null,
+      "target_met": false,
+      "scaling_characteristics": {
+        "is_linear": false,
+        "complexity_growth": "Exponential",
+        "memory_scaling": "Low",
+        "recommended_limit": 64
+      }
+    },
+    "512": {
+      "participant_count": 512,
+      "threshold_count": 256,
+      "metrics": {
+        "operation_duration": 165308544345,
+        "memory_usage_mb": 0,
+        "cpu_cores": 20,
+        "participant_count": 512,
+        "threshold_count": 256,
+        "simulated_cores": 20,
+        "adjusted_duration": 4231898735232,
+        "network_latency_total": 102400000000,
+        "success_rate": 1,
+        "failure_count": 0,
+        "linear_scaling": false,
+        "complexity_factor": 25.6
+      },
+      "phase_breakdown": null,
+      "target_met": false,
+      "scaling_characteristics": {
+        "is_linear": false,
+        "complexity_growth": "Exponential",
+        "memory_scaling": "Low",
+        "recommended_limit": 64
+      }
+    },
+    "64": {
+      "participant_count": 64,
+      "threshold_count": 32,
+      "metrics": {
+        "operation_duration": 173435157,
+        "memory_usage_mb": 0,
+        "cpu_cores": 20,
+        "participant_count": 64,
+        "threshold_count": 32,
+        "simulated_cores": 20,
+        "adjusted_duration": 554992502,
+        "network_latency_total": 12800000000,
+        "success_rate": 1,
+        "failure_count": 0,
+        "linear_scaling": false,
+        "complexity_factor": 3.2
+      },
+      "phase_breakdown": null,
+      "target_met": true,
+      "scaling_characteristics": {
+        "is_linear": false,
+        "complexity_growth": "Quadratic",
+        "memory_scaling": "Low",
+        "recommended_limit": 128
+      }
+    }
+  },
+  "comparison_analysis": {
+    "better_scheme": {
+      "128": "MuSig2",
+      "256": "MuSig2",
+      "512": "MuSig2",
+      "64": "MuSig2"
+    },
+    "performance_gap": {
+      "128": 0.3557966608041662,
+      "256": 3.373414597392332,
+      "512": 40.731158657658405,
+      "64": 0.036905329986248465
+    },
+    "scalability_winner": "MuSig2",
+    "recommendations": [
+      "MuSig2 shows better overall performance across participant counts"
+    ]
+  },
+  "summary": {
+    "max_viable_participants": {
+      "FROST": 128,
+      "MuSig2": 512
+    },
+    "target_met_counts": {
+      "FROST": 2,
+      "MuSig2": 4
+    },
+    "overall_recommendation": "Recommend MuSig2 for federation sizes up to 512",
+    "critical_findings": [
+      "At least one scheme supports 256+ participants"
+    ]
+  }
+}

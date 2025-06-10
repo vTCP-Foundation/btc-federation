@@ -1,0 +1,927 @@
+{
+  "generated_at": "2025-06-10T16:05:51.933363006+03:00",
+  "test_environment": {
+    "cpu_cores": 20,
+    "os": "linux",
+    "go_version": "go1.24.3",
+    "bitcoin_network": "regtest",
+    "test_timestamp": "2025-06-10T16:05:51+03:00"
+  },
+  "musig2_results": [
+    {
+      "participant_count": 64,
+      "threshold_count": 32,
+      "real_metrics": {
+        "multisig_address_creation": {
+          "duration": 40688224,
+          "duration_ms": 40,
+          "duration_sec": 0,
+          "success": true
+        },
+        "transaction_signing": {
+          "duration": 1971557,
+          "duration_ms": 1,
+          "duration_sec": 0,
+          "success": true
+        },
+        "overall_workflow": {
+          "duration": 245703109,
+          "duration_ms": 245,
+          "duration_sec": 0,
+          "success": true
+        },
+        "combined_crypto_time": {
+          "duration": 42659781,
+          "duration_ms": 42,
+          "duration_sec": 0,
+          "success": true
+        }
+      },
+      "blockchain_transactions": [
+        {
+          "type": "miner_to_multisig",
+          "tx_hash": "35e0c8c72497909c9b99e2fba2cac2c63732e7d1afacaf394f0e9d99ccde55a9",
+          "from_address": "miner",
+          "to_address": "bcrt1qxw746vqa98fk0hjynul3naatnlv3lkfmu6s5hw",
+          "amount": 1,
+          "balance_before": 1525,
+          "balance_after": 1674.9989718,
+          "confirmations": 1
+        },
+        {
+          "type": "multisig_to_miner",
+          "tx_hash": "6efa5069a367aa14515e07d98f8d2fe34182112ee71b6ab8252e834162cebf56",
+          "from_address": "bcrt1qxw746vqa98fk0hjynul3naatnlv3lkfmu6s5hw",
+          "to_address": "miner",
+          "amount": 0.999,
+          "balance_before": 1,
+          "balance_after": 0,
+          "confirmations": 1
+        }
+      ],
+      "real_performance_target": true,
+      "simulated_metrics": {
+        "operation_duration": 42659781,
+        "operation_duration_ms": 42,
+        "operation_duration_sec": 0,
+        "adjusted_duration": 136511299,
+        "adjusted_duration_ms": 136,
+        "adjusted_duration_sec": 0,
+        "network_latency_total": 6400000000,
+        "network_latency_total_ms": 6400,
+        "network_latency_total_sec": 0,
+        "total_simulated_time": 6536511299,
+        "total_simulated_time_ms": 6536,
+        "total_simulated_time_sec": 0,
+        "scaling_factor": 3.2,
+        "simulated_cores": 20,
+        "linear_scaling": false
+      },
+      "simulated_performance_target": true,
+      "resource_usage": {
+        "peak_memory_mb": 2.5918502807617188,
+        "cpu_utilization": 0.64,
+        "network_latency_ms": 320
+      }
+    },
+    {
+      "participant_count": 128,
+      "threshold_count": 64,
+      "real_metrics": {
+        "multisig_address_creation": {
+          "duration": 48017272,
+          "duration_ms": 48,
+          "duration_sec": 0,
+          "success": true
+        },
+        "transaction_signing": {
+          "duration": 6090279,
+          "duration_ms": 6,
+          "duration_sec": 0,
+          "success": true
+        },
+        "overall_workflow": {
+          "duration": 317186374,
+          "duration_ms": 317,
+          "duration_sec": 0,
+          "success": true
+        },
+        "combined_crypto_time": {
+          "duration": 54107551,
+          "duration_ms": 54,
+          "duration_sec": 0,
+          "success": true
+        }
+      },
+      "blockchain_transactions": [
+        {
+          "type": "miner_to_multisig",
+          "tx_hash": "f4c65e3f4d224ee192a6e0c7bf772a18d4f219e9386fa45deb1aab42e4c1fe13",
+          "from_address": "miner",
+          "to_address": "bcrt1qteqae7gjrzyr79vtk9pcrnw094z2yua9cts0wu",
+          "amount": 1,
+          "balance_before": 1750,
+          "balance_after": 1899.9989718,
+          "confirmations": 1
+        },
+        {
+          "type": "multisig_to_miner",
+          "tx_hash": "3e52a9718dfe3148df7cf3d50b1186cc0ecdfe09313bd640c1f1e1b9e73a17bf",
+          "from_address": "bcrt1qteqae7gjrzyr79vtk9pcrnw094z2yua9cts0wu",
+          "to_address": "miner",
+          "amount": 0.999,
+          "balance_before": 1,
+          "balance_after": 0,
+          "confirmations": 1
+        }
+      ],
+      "real_performance_target": true,
+      "simulated_metrics": {
+        "operation_duration": 54107551,
+        "operation_duration_ms": 54,
+        "operation_duration_sec": 0,
+        "adjusted_duration": 346288326,
+        "adjusted_duration_ms": 346,
+        "adjusted_duration_sec": 0,
+        "network_latency_total": 12800000000,
+        "network_latency_total_ms": 12800,
+        "network_latency_total_sec": 0,
+        "total_simulated_time": 13146288326,
+        "total_simulated_time_ms": 13146,
+        "total_simulated_time_sec": 0,
+        "scaling_factor": 6.4,
+        "simulated_cores": 20,
+        "linear_scaling": false
+      },
+      "simulated_performance_target": true,
+      "resource_usage": {
+        "peak_memory_mb": 1.7386627197265625,
+        "cpu_utilization": 1.28,
+        "network_latency_ms": 640
+      }
+    },
+    {
+      "participant_count": 256,
+      "threshold_count": 128,
+      "real_metrics": {
+        "multisig_address_creation": {
+          "duration": 54787989,
+          "duration_ms": 54,
+          "duration_sec": 0,
+          "success": true
+        },
+        "transaction_signing": {
+          "duration": 11535205,
+          "duration_ms": 11,
+          "duration_sec": 0,
+          "success": true
+        },
+        "overall_workflow": {
+          "duration": 302331191,
+          "duration_ms": 302,
+          "duration_sec": 0,
+          "success": true
+        },
+        "combined_crypto_time": {
+          "duration": 66323194,
+          "duration_ms": 66,
+          "duration_sec": 0,
+          "success": true
+        }
+      },
+      "blockchain_transactions": [
+        {
+          "type": "miner_to_multisig",
+          "tx_hash": "ba2032019418be85b189d18254c2023c2f94ea1b780d3a5be8c2b7964569b067",
+          "from_address": "miner",
+          "to_address": "bcrt1qk2a4anufn7tgce9njlqvwry66x96mq75hs68gw",
+          "amount": 1,
+          "balance_before": 1700,
+          "balance_after": 1949.9989718,
+          "confirmations": 1
+        },
+        {
+          "type": "multisig_to_miner",
+          "tx_hash": "c132edd4646d5b21223d0daffecaa56964e3f8b107903617fcc86b3fd747a774",
+          "from_address": "bcrt1qk2a4anufn7tgce9njlqvwry66x96mq75hs68gw",
+          "to_address": "miner",
+          "amount": 0.999,
+          "balance_before": 1,
+          "balance_after": 0,
+          "confirmations": 1
+        }
+      ],
+      "real_performance_target": true,
+      "simulated_metrics": {
+        "operation_duration": 66323194,
+        "operation_duration_ms": 66,
+        "operation_duration_sec": 0,
+        "adjusted_duration": 848936883,
+        "adjusted_duration_ms": 848,
+        "adjusted_duration_sec": 0,
+        "network_latency_total": 25600000000,
+        "network_latency_total_ms": 25600,
+        "network_latency_total_sec": 0,
+        "total_simulated_time": 26448936883,
+        "total_simulated_time_ms": 26448,
+        "total_simulated_time_sec": 0,
+        "scaling_factor": 12.8,
+        "simulated_cores": 20,
+        "linear_scaling": false
+      },
+      "simulated_performance_target": true,
+      "resource_usage": {
+        "peak_memory_mb": 2.7848358154296875,
+        "cpu_utilization": 2.56,
+        "network_latency_ms": 1280
+      }
+    },
+    {
+      "participant_count": 512,
+      "threshold_count": 256,
+      "real_metrics": {
+        "multisig_address_creation": {
+          "duration": 50198909,
+          "duration_ms": 50,
+          "duration_sec": 0,
+          "success": true
+        },
+        "transaction_signing": {
+          "duration": 24398590,
+          "duration_ms": 24,
+          "duration_sec": 0,
+          "success": true
+        },
+        "overall_workflow": {
+          "duration": 305287391,
+          "duration_ms": 305,
+          "duration_sec": 0,
+          "success": true
+        },
+        "combined_crypto_time": {
+          "duration": 74597499,
+          "duration_ms": 74,
+          "duration_sec": 0,
+          "success": true
+        }
+      },
+      "blockchain_transactions": [
+        {
+          "type": "miner_to_multisig",
+          "tx_hash": "aff032cf0408373111b81f5c9dcee61d7193fe5d07b30415d49be5cd16e188cc",
+          "from_address": "miner",
+          "to_address": "bcrt1qlmpmsjasrwy9cnl3qtegaj7smxezas20egzk6m",
+          "amount": 1,
+          "balance_before": 1825,
+          "balance_after": 1949.9989718,
+          "confirmations": 1
+        },
+        {
+          "type": "multisig_to_miner",
+          "tx_hash": "79f2713cbc5ea694579d2411d1dbc98b2161a4eb2a7c07bb6a9d19c0ae706bd3",
+          "from_address": "bcrt1qlmpmsjasrwy9cnl3qtegaj7smxezas20egzk6m",
+          "to_address": "miner",
+          "amount": 0.999,
+          "balance_before": 1,
+          "balance_after": 0,
+          "confirmations": 1
+        }
+      ],
+      "real_performance_target": true,
+      "simulated_metrics": {
+        "operation_duration": 74597499,
+        "operation_duration_ms": 74,
+        "operation_duration_sec": 0,
+        "adjusted_duration": 1909695974,
+        "adjusted_duration_ms": 1909,
+        "adjusted_duration_sec": 0,
+        "network_latency_total": 51200000000,
+        "network_latency_total_ms": 51200,
+        "network_latency_total_sec": 0,
+        "total_simulated_time": 53109695974,
+        "total_simulated_time_ms": 53109,
+        "total_simulated_time_sec": 0,
+        "scaling_factor": 25.6,
+        "simulated_cores": 20,
+        "linear_scaling": false
+      },
+      "simulated_performance_target": true,
+      "resource_usage": {
+        "peak_memory_mb": 1.9349822998046875,
+        "cpu_utilization": 5.12,
+        "network_latency_ms": 2560
+      }
+    }
+  ],
+  "frost_results": [
+    {
+      "participant_count": 64,
+      "threshold_count": 32,
+      "real_metrics": {
+        "multisig_address_creation": {
+          "duration": 87127504,
+          "duration_ms": 87,
+          "duration_sec": 0,
+          "success": true
+        },
+        "transaction_signing": {
+          "duration": 6407095,
+          "duration_ms": 6,
+          "duration_sec": 0,
+          "success": true
+        },
+        "overall_workflow": {
+          "duration": 330362609,
+          "duration_ms": 330,
+          "duration_sec": 0,
+          "success": true
+        },
+        "combined_crypto_time": {
+          "duration": 93534599,
+          "duration_ms": 93,
+          "duration_sec": 0,
+          "success": true
+        }
+      },
+      "blockchain_transactions": [
+        {
+          "type": "miner_to_multisig",
+          "tx_hash": "0a5b4ab7a89502a91664a60e2471a5cb7f4701af1304af7947fa018253e1cc0d",
+          "from_address": "miner",
+          "to_address": "bcrt1q42ndvq7xmlkustn0wcxt6r2lhmlgekrpm6emug",
+          "amount": 1,
+          "balance_before": 1825,
+          "balance_after": 1899.9989718,
+          "confirmations": 1
+        },
+        {
+          "type": "multisig_to_miner",
+          "tx_hash": "93f63f579188cbc5883e34f347699792623c169a2e53d7a2c6a9445af47f13b7",
+          "from_address": "bcrt1q42ndvq7xmlkustn0wcxt6r2lhmlgekrpm6emug",
+          "to_address": "miner",
+          "amount": 0.999,
+          "balance_before": 1,
+          "balance_after": 0,
+          "confirmations": 1
+        }
+      ],
+      "real_performance_target": true,
+      "simulated_metrics": {
+        "operation_duration": 93534599,
+        "operation_duration_ms": 93,
+        "operation_duration_sec": 0,
+        "adjusted_duration": 299310716,
+        "adjusted_duration_ms": 299,
+        "adjusted_duration_sec": 0,
+        "network_latency_total": 6400000000,
+        "network_latency_total_ms": 6400,
+        "network_latency_total_sec": 0,
+        "total_simulated_time": 6699310716,
+        "total_simulated_time_ms": 6699,
+        "total_simulated_time_sec": 0,
+        "scaling_factor": 3.2,
+        "simulated_cores": 20,
+        "linear_scaling": false
+      },
+      "simulated_performance_target": true,
+      "resource_usage": {
+        "peak_memory_mb": 3.0391921997070312,
+        "cpu_utilization": 0.64,
+        "network_latency_ms": 320
+      }
+    },
+    {
+      "participant_count": 128,
+      "threshold_count": 64,
+      "real_metrics": {
+        "multisig_address_creation": {
+          "duration": 736173898,
+          "duration_ms": 736,
+          "duration_sec": 0,
+          "success": true
+        },
+        "transaction_signing": {
+          "duration": 15095866,
+          "duration_ms": 15,
+          "duration_sec": 0,
+          "success": true
+        },
+        "overall_workflow": {
+          "duration": 1009535323,
+          "duration_ms": 1009,
+          "duration_sec": 0,
+          "success": true
+        },
+        "combined_crypto_time": {
+          "duration": 751269764,
+          "duration_ms": 751,
+          "duration_sec": 0,
+          "success": true
+        }
+      },
+      "blockchain_transactions": [
+        {
+          "type": "miner_to_multisig",
+          "tx_hash": "f31e0dc3b58973888ecb715b9b88e614a7387f768999488609eba2c2f77b1282",
+          "from_address": "miner",
+          "to_address": "bcrt1q5ptq85hfz39e4v88e2vmgn7gg974jt8c9h9ezj",
+          "amount": 1,
+          "balance_before": 2075,
+          "balance_after": 2199.9989718,
+          "confirmations": 1
+        },
+        {
+          "type": "multisig_to_miner",
+          "tx_hash": "676ff6fdf64fe71a7d897157fb592ffe8d86b9455badb6a606a1328431acee4e",
+          "from_address": "bcrt1q5ptq85hfz39e4v88e2vmgn7gg974jt8c9h9ezj",
+          "to_address": "miner",
+          "amount": 0.999,
+          "balance_before": 1,
+          "balance_after": 0,
+          "confirmations": 1
+        }
+      ],
+      "real_performance_target": true,
+      "simulated_metrics": {
+        "operation_duration": 751269764,
+        "operation_duration_ms": 751,
+        "operation_duration_sec": 0,
+        "adjusted_duration": 4808126489,
+        "adjusted_duration_ms": 4808,
+        "adjusted_duration_sec": 0,
+        "network_latency_total": 12800000000,
+        "network_latency_total_ms": 12800,
+        "network_latency_total_sec": 0,
+        "total_simulated_time": 17608126489,
+        "total_simulated_time_ms": 17608,
+        "total_simulated_time_sec": 0,
+        "scaling_factor": 6.4,
+        "simulated_cores": 20,
+        "linear_scaling": false
+      },
+      "simulated_performance_target": true,
+      "resource_usage": {
+        "peak_memory_mb": 6.0132904052734375,
+        "cpu_utilization": 1.28,
+        "network_latency_ms": 640
+      }
+    },
+    {
+      "participant_count": 256,
+      "threshold_count": 128,
+      "real_metrics": {
+        "multisig_address_creation": {
+          "duration": 4701739196,
+          "duration_ms": 4701,
+          "duration_sec": 0,
+          "success": true
+        },
+        "transaction_signing": {
+          "duration": 29993207,
+          "duration_ms": 29,
+          "duration_sec": 0,
+          "success": true
+        },
+        "overall_workflow": {
+          "duration": 4998597458,
+          "duration_ms": 4998,
+          "duration_sec": 0,
+          "success": true
+        },
+        "combined_crypto_time": {
+          "duration": 4731732403,
+          "duration_ms": 4731,
+          "duration_sec": 0,
+          "success": true
+        }
+      },
+      "blockchain_transactions": [
+        {
+          "type": "miner_to_multisig",
+          "tx_hash": "59631e4e4ee4c25743080f72595835875d1d364d16e75c0d9d9b0a0466159452",
+          "from_address": "miner",
+          "to_address": "bcrt1qve8kfsv567saxtmedx2n5jttdrknfxn9jqded0",
+          "amount": 1,
+          "balance_before": 3250,
+          "balance_after": 3274.9989718,
+          "confirmations": 1
+        },
+        {
+          "type": "multisig_to_miner",
+          "tx_hash": "d23a6699d872a3ba7e9081f65893672d67b8b0deb3e7677c08317f7914a01ca6",
+          "from_address": "bcrt1qve8kfsv567saxtmedx2n5jttdrknfxn9jqded0",
+          "to_address": "miner",
+          "amount": 0.999,
+          "balance_before": 1,
+          "balance_after": 0,
+          "confirmations": 1
+        }
+      ],
+      "real_performance_target": true,
+      "simulated_metrics": {
+        "operation_duration": 4731732403,
+        "operation_duration_ms": 4731,
+        "operation_duration_sec": 0,
+        "adjusted_duration": 60566174758,
+        "adjusted_duration_ms": 60566,
+        "adjusted_duration_sec": 0,
+        "network_latency_total": 25600000000,
+        "network_latency_total_ms": 25600,
+        "network_latency_total_sec": 0,
+        "total_simulated_time": 86166174758,
+        "total_simulated_time_ms": 86166,
+        "total_simulated_time_sec": 0,
+        "scaling_factor": 12.8,
+        "simulated_cores": 20,
+        "linear_scaling": false
+      },
+      "simulated_performance_target": true,
+      "resource_usage": {
+        "peak_memory_mb": 15.007987976074219,
+        "cpu_utilization": 2.56,
+        "network_latency_ms": 1280
+      }
+    },
+    {
+      "participant_count": 512,
+      "threshold_count": 256,
+      "real_metrics": {
+        "multisig_address_creation": {
+          "duration": 32230345530,
+          "duration_ms": 32230,
+          "duration_sec": 0,
+          "success": true
+        },
+        "transaction_signing": {
+          "duration": 69751299,
+          "duration_ms": 69,
+          "duration_sec": 0,
+          "success": true
+        },
+        "overall_workflow": {
+          "duration": 32780466839,
+          "duration_ms": 32780,
+          "duration_sec": 0,
+          "success": true
+        },
+        "combined_crypto_time": {
+          "duration": 32300096829,
+          "duration_ms": 32300,
+          "duration_sec": 0,
+          "success": true
+        }
+      },
+      "blockchain_transactions": [
+        {
+          "type": "miner_to_multisig",
+          "tx_hash": "fa7235e97ae8ba9443819d08f0ed1ba79a4b8d4f894b742528da1066e804d8fa",
+          "from_address": "miner",
+          "to_address": "bcrt1qq6kngwum076adeys6t07874l2xuw89n5rvdd3x",
+          "amount": 1,
+          "balance_before": 6137.5,
+          "balance_after": 6156.2489718,
+          "confirmations": 1
+        },
+        {
+          "type": "multisig_to_miner",
+          "tx_hash": "359b5bf05769c0cad95241dc3e52c6de5f2e72afcc5fb8ea54dd2131ded82831",
+          "from_address": "bcrt1qq6kngwum076adeys6t07874l2xuw89n5rvdd3x",
+          "to_address": "miner",
+          "amount": 0.999,
+          "balance_before": 1,
+          "balance_after": 0,
+          "confirmations": 1
+        }
+      ],
+      "real_performance_target": true,
+      "simulated_metrics": {
+        "operation_duration": 32300096829,
+        "operation_duration_ms": 32300,
+        "operation_duration_sec": 0,
+        "adjusted_duration": 826882478822,
+        "adjusted_duration_ms": 826882,
+        "adjusted_duration_sec": 0,
+        "network_latency_total": 51200000000,
+        "network_latency_total_ms": 51200,
+        "network_latency_total_sec": 0,
+        "total_simulated_time": 878082478822,
+        "total_simulated_time_ms": 878082,
+        "total_simulated_time_sec": 0,
+        "scaling_factor": 25.6,
+        "simulated_cores": 20,
+        "linear_scaling": false
+      },
+      "simulated_performance_target": false,
+      "resource_usage": {
+        "peak_memory_mb": 89.8333511352539,
+        "cpu_utilization": 5.12,
+        "network_latency_ms": 2560
+      }
+    }
+  ],
+  "comparison": {
+    "real_address_creation_comparison": [
+      {
+        "participant_count": 64,
+        "musig2_duration": 40688224,
+        "frost_duration": 87127504,
+        "musig2_duration_ms": 40,
+        "musig2_duration_sec": 0,
+        "frost_duration_ms": 87,
+        "frost_duration_sec": 0,
+        "performance_ratio": 2.175,
+        "recommended_scheme": "MuSig2"
+      },
+      {
+        "participant_count": 128,
+        "musig2_duration": 48017272,
+        "frost_duration": 736173898,
+        "musig2_duration_ms": 48,
+        "musig2_duration_sec": 0,
+        "frost_duration_ms": 736,
+        "frost_duration_sec": 0,
+        "performance_ratio": 15.333333333333334,
+        "recommended_scheme": "MuSig2"
+      },
+      {
+        "participant_count": 256,
+        "musig2_duration": 54787989,
+        "frost_duration": 4701739196,
+        "musig2_duration_ms": 54,
+        "musig2_duration_sec": 0,
+        "frost_duration_ms": 4701,
+        "frost_duration_sec": 0,
+        "performance_ratio": 87.05555555555556,
+        "recommended_scheme": "MuSig2"
+      },
+      {
+        "participant_count": 512,
+        "musig2_duration": 50198909,
+        "frost_duration": 32230345530,
+        "musig2_duration_ms": 50,
+        "musig2_duration_sec": 0,
+        "frost_duration_ms": 32230,
+        "frost_duration_sec": 0,
+        "performance_ratio": 644.6,
+        "recommended_scheme": "MuSig2"
+      }
+    ],
+    "real_signing_comparison": [
+      {
+        "participant_count": 64,
+        "musig2_duration": 1971557,
+        "frost_duration": 6407095,
+        "musig2_duration_ms": 1,
+        "musig2_duration_sec": 0,
+        "frost_duration_ms": 6,
+        "frost_duration_sec": 0,
+        "performance_ratio": 6,
+        "recommended_scheme": "MuSig2"
+      },
+      {
+        "participant_count": 128,
+        "musig2_duration": 6090279,
+        "frost_duration": 15095866,
+        "musig2_duration_ms": 6,
+        "musig2_duration_sec": 0,
+        "frost_duration_ms": 15,
+        "frost_duration_sec": 0,
+        "performance_ratio": 2.5,
+        "recommended_scheme": "MuSig2"
+      },
+      {
+        "participant_count": 256,
+        "musig2_duration": 11535205,
+        "frost_duration": 29993207,
+        "musig2_duration_ms": 11,
+        "musig2_duration_sec": 0,
+        "frost_duration_ms": 29,
+        "frost_duration_sec": 0,
+        "performance_ratio": 2.6363636363636362,
+        "recommended_scheme": "MuSig2"
+      },
+      {
+        "participant_count": 512,
+        "musig2_duration": 24398590,
+        "frost_duration": 69751299,
+        "musig2_duration_ms": 24,
+        "musig2_duration_sec": 0,
+        "frost_duration_ms": 69,
+        "frost_duration_sec": 0,
+        "performance_ratio": 2.875,
+        "recommended_scheme": "MuSig2"
+      }
+    ],
+    "simulated_crypto_comparison": [
+      {
+        "participant_count": 64,
+        "musig2_duration": 6536511299,
+        "frost_duration": 6699310716,
+        "musig2_duration_ms": 6536,
+        "musig2_duration_sec": 0,
+        "frost_duration_ms": 6699,
+        "frost_duration_sec": 0,
+        "performance_ratio": 1.024938800489596,
+        "recommended_scheme": "MuSig2"
+      },
+      {
+        "participant_count": 128,
+        "musig2_duration": 13146288326,
+        "frost_duration": 17608126489,
+        "musig2_duration_ms": 13146,
+        "musig2_duration_sec": 0,
+        "frost_duration_ms": 17608,
+        "frost_duration_sec": 0,
+        "performance_ratio": 1.3394188346265024,
+        "recommended_scheme": "MuSig2"
+      },
+      {
+        "participant_count": 256,
+        "musig2_duration": 26448936883,
+        "frost_duration": 86166174758,
+        "musig2_duration_ms": 26448,
+        "musig2_duration_sec": 0,
+        "frost_duration_ms": 86166,
+        "frost_duration_sec": 0,
+        "performance_ratio": 3.257940108892922,
+        "recommended_scheme": "MuSig2"
+      },
+      {
+        "participant_count": 512,
+        "musig2_duration": 53109695974,
+        "frost_duration": 878082478822,
+        "musig2_duration_ms": 53109,
+        "musig2_duration_sec": 0,
+        "frost_duration_ms": 878082,
+        "frost_duration_sec": 0,
+        "performance_ratio": 16.533581878777607,
+        "recommended_scheme": "MuSig2"
+      }
+    ],
+    "real_vs_simulated_comparison": [
+      {
+        "participant_count": 64,
+        "scheme": "MuSig2",
+        "real_crypto_time": 42659781,
+        "simulated_total_time": 6536511299,
+        "real_crypto_time_ms": 42,
+        "real_crypto_time_sec": 0,
+        "simulated_total_time_ms": 6536,
+        "simulated_total_time_sec": 0,
+        "simulation_overhead_ratio": 155.61904761904762,
+        "recommended_estimate": "Simulation provides conservative estimate"
+      },
+      {
+        "participant_count": 128,
+        "scheme": "MuSig2",
+        "real_crypto_time": 54107551,
+        "simulated_total_time": 13146288326,
+        "real_crypto_time_ms": 54,
+        "real_crypto_time_sec": 0,
+        "simulated_total_time_ms": 13146,
+        "simulated_total_time_sec": 0,
+        "simulation_overhead_ratio": 243.44444444444446,
+        "recommended_estimate": "Simulation provides conservative estimate"
+      },
+      {
+        "participant_count": 256,
+        "scheme": "MuSig2",
+        "real_crypto_time": 66323194,
+        "simulated_total_time": 26448936883,
+        "real_crypto_time_ms": 66,
+        "real_crypto_time_sec": 0,
+        "simulated_total_time_ms": 26448,
+        "simulated_total_time_sec": 0,
+        "simulation_overhead_ratio": 400.72727272727275,
+        "recommended_estimate": "Simulation provides conservative estimate"
+      },
+      {
+        "participant_count": 512,
+        "scheme": "MuSig2",
+        "real_crypto_time": 74597499,
+        "simulated_total_time": 53109695974,
+        "real_crypto_time_ms": 74,
+        "real_crypto_time_sec": 0,
+        "simulated_total_time_ms": 53109,
+        "simulated_total_time_sec": 0,
+        "simulation_overhead_ratio": 717.6891891891892,
+        "recommended_estimate": "Simulation provides conservative estimate"
+      },
+      {
+        "participant_count": 64,
+        "scheme": "FROST",
+        "real_crypto_time": 93534599,
+        "simulated_total_time": 6699310716,
+        "real_crypto_time_ms": 93,
+        "real_crypto_time_sec": 0,
+        "simulated_total_time_ms": 6699,
+        "simulated_total_time_sec": 0,
+        "simulation_overhead_ratio": 72.03225806451613,
+        "recommended_estimate": "Simulation provides conservative estimate"
+      },
+      {
+        "participant_count": 128,
+        "scheme": "FROST",
+        "real_crypto_time": 751269764,
+        "simulated_total_time": 17608126489,
+        "real_crypto_time_ms": 751,
+        "real_crypto_time_sec": 0,
+        "simulated_total_time_ms": 17608,
+        "simulated_total_time_sec": 0,
+        "simulation_overhead_ratio": 23.44607190412783,
+        "recommended_estimate": "Simulation provides conservative estimate"
+      },
+      {
+        "participant_count": 256,
+        "scheme": "FROST",
+        "real_crypto_time": 4731732403,
+        "simulated_total_time": 86166174758,
+        "real_crypto_time_ms": 4731,
+        "real_crypto_time_sec": 0,
+        "simulated_total_time_ms": 86166,
+        "simulated_total_time_sec": 0,
+        "simulation_overhead_ratio": 18.213062777425492,
+        "recommended_estimate": "Simulation provides conservative estimate"
+      },
+      {
+        "participant_count": 512,
+        "scheme": "FROST",
+        "real_crypto_time": 32300096829,
+        "simulated_total_time": 878082478822,
+        "real_crypto_time_ms": 32300,
+        "real_crypto_time_sec": 0,
+        "simulated_total_time_ms": 878082,
+        "simulated_total_time_sec": 0,
+        "simulation_overhead_ratio": 27.185201238390093,
+        "recommended_estimate": "Simulation provides conservative estimate"
+      }
+    ],
+    "scalability_analysis": {
+      "musig2_linear_scaling": true,
+      "frost_linear_scaling": false,
+      "musig2_complexity_factor": 0.22023809523809523,
+      "frost_complexity_factor": 43.413978494623656,
+      "max_recommended_participants": 512
+    }
+  },
+  "recommendations": [
+    "Simulation estimates should be used with caution - significant deviation from real performance",
+    "MuSig2 generally outperforms FROST in real blockchain operations",
+    "Monitor performance degradation beyond 128 participants",
+    "Use simulation for initial capacity planning, validate with real tests",
+    "Consider network latency impact in distributed federation deployments"
+  ],
+  "summary": {
+    "total_configurations_tested": 8,
+    "real_tests_passed": 8,
+    "simulated_tests_passed": 7,
+    "best_real_performing_scheme": "MuSig2",
+    "best_simulated_performing_scheme": "MuSig2",
+    "real_worst_case_performance": 32300096829,
+    "simulated_worst_case_performance": 878082478822,
+    "real_best_case_performance": 42659781,
+    "simulated_best_case_performance": 6536511299,
+    "recommended_configurations": [
+      {
+        "participant_count": 64,
+        "scheme": "MuSig2",
+        "reason": "Meets real performance requirements"
+      },
+      {
+        "participant_count": 128,
+        "scheme": "MuSig2",
+        "reason": "Meets real performance requirements"
+      },
+      {
+        "participant_count": 256,
+        "scheme": "MuSig2",
+        "reason": "Meets real performance requirements"
+      },
+      {
+        "participant_count": 512,
+        "scheme": "MuSig2",
+        "reason": "Meets real performance requirements"
+      },
+      {
+        "participant_count": 64,
+        "scheme": "FROST",
+        "reason": "Meets real performance requirements"
+      },
+      {
+        "participant_count": 128,
+        "scheme": "FROST",
+        "reason": "Meets real performance requirements"
+      },
+      {
+        "participant_count": 256,
+        "scheme": "FROST",
+        "reason": "Meets real performance requirements"
+      },
+      {
+        "participant_count": 512,
+        "scheme": "FROST",
+        "reason": "Meets real performance requirements"
+      }
+    ]
+  }
+}
