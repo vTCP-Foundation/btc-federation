@@ -64,6 +64,7 @@ type OperationMetrics struct {
 	Duration     time.Duration `json:"duration"`
 	DurationMs   int64         `json:"duration_ms"`
 	DurationSec  float64       `json:"duration_sec"`
+	DurationMin  float64       `json:"duration_min"`
 	Success      bool          `json:"success"`
 	ErrorMessage string        `json:"error_message,omitempty"`
 }
@@ -101,8 +102,10 @@ type ParticipantComparison struct {
 	FROSTDuration     time.Duration `json:"frost_duration"`
 	MuSig2DurationMs  int64         `json:"musig2_duration_ms"`
 	MuSig2DurationSec float64       `json:"musig2_duration_sec"`
+	MuSig2DurationMin float64       `json:"musig2_duration_min"`
 	FROSTDurationMs   int64         `json:"frost_duration_ms"`
 	FROSTDurationSec  float64       `json:"frost_duration_sec"`
+	FROSTDurationMin  float64       `json:"frost_duration_min"`
 	PerformanceRatio  float64       `json:"performance_ratio"`
 	RecommendedScheme string        `json:"recommended_scheme"`
 }
@@ -238,6 +241,7 @@ func testMuSig2Configuration(t *testing.T, rpc *BitcoinRPC, participants, thresh
 		Duration:    testResult.AddressCreationDuration,
 		DurationMs:  testResult.AddressCreationDuration.Milliseconds(),
 		DurationSec: testResult.AddressCreationDuration.Seconds(),
+		DurationMin: testResult.AddressCreationDuration.Minutes(),
 		Success:     true,
 	}
 
@@ -245,6 +249,7 @@ func testMuSig2Configuration(t *testing.T, rpc *BitcoinRPC, participants, thresh
 		Duration:    testResult.SigningDuration,
 		DurationMs:  testResult.SigningDuration.Milliseconds(),
 		DurationSec: testResult.SigningDuration.Seconds(),
+		DurationMin: testResult.SigningDuration.Minutes(),
 		Success:     true,
 	}
 
@@ -252,6 +257,7 @@ func testMuSig2Configuration(t *testing.T, rpc *BitcoinRPC, participants, thresh
 		Duration:    testResult.OverallDuration,
 		DurationMs:  testResult.OverallDuration.Milliseconds(),
 		DurationSec: testResult.OverallDuration.Seconds(),
+		DurationMin: testResult.OverallDuration.Minutes(),
 		Success:     true,
 	}
 
@@ -323,6 +329,7 @@ func testFROSTConfiguration(t *testing.T, rpc *BitcoinRPC, participants, thresho
 		Duration:    testResult.AddressCreationDuration,
 		DurationMs:  testResult.AddressCreationDuration.Milliseconds(),
 		DurationSec: testResult.AddressCreationDuration.Seconds(),
+		DurationMin: testResult.AddressCreationDuration.Minutes(),
 		Success:     true,
 	}
 
@@ -330,6 +337,7 @@ func testFROSTConfiguration(t *testing.T, rpc *BitcoinRPC, participants, thresho
 		Duration:    testResult.SigningDuration,
 		DurationMs:  testResult.SigningDuration.Milliseconds(),
 		DurationSec: testResult.SigningDuration.Seconds(),
+		DurationMin: testResult.SigningDuration.Minutes(),
 		Success:     true,
 	}
 
@@ -337,6 +345,7 @@ func testFROSTConfiguration(t *testing.T, rpc *BitcoinRPC, participants, thresho
 		Duration:    testResult.OverallDuration,
 		DurationMs:  testResult.OverallDuration.Milliseconds(),
 		DurationSec: testResult.OverallDuration.Seconds(),
+		DurationMin: testResult.OverallDuration.Minutes(),
 		Success:     true,
 	}
 
@@ -379,62 +388,61 @@ func testFROSTConfiguration(t *testing.T, rpc *BitcoinRPC, participants, thresho
 
 // generateComparison generates comparative analysis between MuSig2 and FROST
 func generateComparison(musig2Results, frostResults []ConfigurationTestResults) ComparisonTestAnalysis {
-	addressComparison := make([]ParticipantComparison, 0, len(musig2Results))
-	signingComparison := make([]ParticipantComparison, 0, len(musig2Results))
+	comparison := ComparisonTestAnalysis{}
 
 	// Generate comparisons for each participant count
-	for i := 0; i < len(musig2Results) && i < len(frostResults); i++ {
-		musig2 := musig2Results[i]
-		frost := frostResults[i]
-
-		// Address creation comparison
-		addressComp := ParticipantComparison{
-			ParticipantCount: musig2.ParticipantCount,
-			MuSig2Duration:   musig2.MultisigAddressCreation.Duration,
-			FROSTDuration:    frost.MultisigAddressCreation.Duration,
-			MuSig2DurationMs: musig2.MultisigAddressCreation.DurationMs,
-			FROSTDurationMs:  frost.MultisigAddressCreation.DurationMs,
+	for i, musig2 := range musig2Results {
+		if i < len(frostResults) {
+			frost := frostResults[i]
+			comparison.AddressCreationComparison = append(comparison.AddressCreationComparison, ParticipantComparison{
+				ParticipantCount:  musig2.ParticipantCount,
+				MuSig2Duration:    musig2.MultisigAddressCreation.Duration,
+				FROSTDuration:     frost.MultisigAddressCreation.Duration,
+				MuSig2DurationMs:  musig2.MultisigAddressCreation.DurationMs,
+				MuSig2DurationSec: musig2.MultisigAddressCreation.DurationSec,
+				MuSig2DurationMin: musig2.MultisigAddressCreation.DurationMin,
+				FROSTDurationMs:   frost.MultisigAddressCreation.DurationMs,
+				FROSTDurationSec:  frost.MultisigAddressCreation.DurationSec,
+				FROSTDurationMin:  frost.MultisigAddressCreation.DurationMin,
+				PerformanceRatio:  float64(frost.MultisigAddressCreation.DurationMs) / float64(musig2.MultisigAddressCreation.DurationMs),
+				RecommendedScheme: func() string {
+					if musig2.MultisigAddressCreation.Duration < frost.MultisigAddressCreation.Duration {
+						return "MuSig2"
+					}
+					return "FROST"
+				}(),
+			})
 		}
-
-		if frost.MultisigAddressCreation.DurationMs > 0 {
-			addressComp.PerformanceRatio = float64(musig2.MultisigAddressCreation.DurationMs) / float64(frost.MultisigAddressCreation.DurationMs)
-		}
-
-		if musig2.MultisigAddressCreation.DurationMs < frost.MultisigAddressCreation.DurationMs {
-			addressComp.RecommendedScheme = "MuSig2"
-		} else {
-			addressComp.RecommendedScheme = "FROST"
-		}
-
-		addressComparison = append(addressComparison, addressComp)
-
-		// Transaction signing comparison
-		signingComp := ParticipantComparison{
-			ParticipantCount: musig2.ParticipantCount,
-			MuSig2Duration:   musig2.TransactionSigning.Duration,
-			FROSTDuration:    frost.TransactionSigning.Duration,
-			MuSig2DurationMs: musig2.TransactionSigning.DurationMs,
-			FROSTDurationMs:  frost.TransactionSigning.DurationMs,
-		}
-
-		if frost.TransactionSigning.DurationMs > 0 {
-			signingComp.PerformanceRatio = float64(musig2.TransactionSigning.DurationMs) / float64(frost.TransactionSigning.DurationMs)
-		}
-
-		if musig2.TransactionSigning.DurationMs < frost.TransactionSigning.DurationMs {
-			signingComp.RecommendedScheme = "MuSig2"
-		} else {
-			signingComp.RecommendedScheme = "FROST"
-		}
-
-		signingComparison = append(signingComparison, signingComp)
 	}
 
-	return ComparisonTestAnalysis{
-		AddressCreationComparison: addressComparison,
-		SigningComparison:         signingComparison,
-		ScalabilityAnalysis:       calculateScalabilityAnalysis(musig2Results, frostResults),
+	// Compare signing times
+	for i, musig2 := range musig2Results {
+		if i < len(frostResults) {
+			frost := frostResults[i]
+			comparison.SigningComparison = append(comparison.SigningComparison, ParticipantComparison{
+				ParticipantCount:  musig2.ParticipantCount,
+				MuSig2Duration:    musig2.TransactionSigning.Duration,
+				FROSTDuration:     frost.TransactionSigning.Duration,
+				MuSig2DurationMs:  musig2.TransactionSigning.DurationMs,
+				MuSig2DurationSec: musig2.TransactionSigning.DurationSec,
+				MuSig2DurationMin: musig2.TransactionSigning.DurationMin,
+				FROSTDurationMs:   frost.TransactionSigning.DurationMs,
+				FROSTDurationSec:  frost.TransactionSigning.DurationSec,
+				FROSTDurationMin:  frost.TransactionSigning.DurationMin,
+				PerformanceRatio:  float64(frost.TransactionSigning.DurationMs) / float64(musig2.TransactionSigning.DurationMs),
+				RecommendedScheme: func() string {
+					if musig2.TransactionSigning.Duration < frost.TransactionSigning.Duration {
+						return "MuSig2"
+					}
+					return "FROST"
+				}(),
+			})
+		}
 	}
+
+	comparison.ScalabilityAnalysis = calculateScalabilityAnalysis(musig2Results, frostResults)
+
+	return comparison
 }
 
 // calculateScalabilityAnalysis analyzes scaling characteristics

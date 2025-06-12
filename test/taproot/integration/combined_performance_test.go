@@ -58,15 +58,19 @@ type SimulatedOperationMetrics struct {
 	OperationDuration      time.Duration `json:"operation_duration"`
 	OperationDurationMs    int64         `json:"operation_duration_ms"`
 	OperationDurationSec   float64       `json:"operation_duration_sec"`
+	OperationDurationMin   float64       `json:"operation_duration_min"`
 	AdjustedDuration       time.Duration `json:"adjusted_duration"`
 	AdjustedDurationMs     int64         `json:"adjusted_duration_ms"`
 	AdjustedDurationSec    float64       `json:"adjusted_duration_sec"`
+	AdjustedDurationMin    float64       `json:"adjusted_duration_min"`
 	NetworkLatencyTotal    time.Duration `json:"network_latency_total"`
 	NetworkLatencyTotalMs  int64         `json:"network_latency_total_ms"`
 	NetworkLatencyTotalSec float64       `json:"network_latency_total_sec"`
+	NetworkLatencyTotalMin float64       `json:"network_latency_total_min"`
 	TotalSimulatedTime     time.Duration `json:"total_simulated_time"`
 	TotalSimulatedTimeMs   int64         `json:"total_simulated_time_ms"`
 	TotalSimulatedTimeSec  float64       `json:"total_simulated_time_sec"`
+	TotalSimulatedTimeMin  float64       `json:"total_simulated_time_min"`
 	ScalingFactor          float64       `json:"scaling_factor"`
 	SimulatedCores         int           `json:"simulated_cores"`
 	LinearScaling          bool          `json:"linear_scaling"`
@@ -89,8 +93,10 @@ type RealVsSimulatedComp struct {
 	SimulatedTotalTime    time.Duration `json:"simulated_total_time"`
 	RealCryptoTimeMs      int64         `json:"real_crypto_time_ms"`
 	RealCryptoTimeSec     float64       `json:"real_crypto_time_sec"`
+	RealCryptoTimeMin     float64       `json:"real_crypto_time_min"`
 	SimulatedTotalTimeMs  int64         `json:"simulated_total_time_ms"`
 	SimulatedTotalTimeSec float64       `json:"simulated_total_time_sec"`
+	SimulatedTotalTimeMin float64       `json:"simulated_total_time_min"`
 	SimulationOverhead    float64       `json:"simulation_overhead_ratio"`
 	RecommendedEstimate   string        `json:"recommended_estimate"`
 }
@@ -214,29 +220,37 @@ func testCombinedMuSig2Configuration(t *testing.T, rpc *BitcoinRPC, detector *be
 
 	// Store real metrics
 	result.RealMetrics.MultisigAddressCreation = OperationMetrics{
-		Duration:   testResult.AddressCreationDuration,
-		DurationMs: testResult.AddressCreationDuration.Milliseconds(),
-		Success:    true,
+		Duration:    testResult.AddressCreationDuration,
+		DurationMs:  testResult.AddressCreationDuration.Milliseconds(),
+		DurationSec: testResult.AddressCreationDuration.Seconds(),
+		DurationMin: testResult.AddressCreationDuration.Minutes(),
+		Success:     true,
 	}
 
 	result.RealMetrics.TransactionSigning = OperationMetrics{
-		Duration:   testResult.SigningDuration,
-		DurationMs: testResult.SigningDuration.Milliseconds(),
-		Success:    true,
+		Duration:    testResult.SigningDuration,
+		DurationMs:  testResult.SigningDuration.Milliseconds(),
+		DurationSec: testResult.SigningDuration.Seconds(),
+		DurationMin: testResult.SigningDuration.Minutes(),
+		Success:     true,
 	}
 
 	result.RealMetrics.OverallWorkflow = OperationMetrics{
-		Duration:   testResult.OverallDuration,
-		DurationMs: testResult.OverallDuration.Milliseconds(),
-		Success:    true,
+		Duration:    testResult.OverallDuration,
+		DurationMs:  testResult.OverallDuration.Milliseconds(),
+		DurationSec: testResult.OverallDuration.Seconds(),
+		DurationMin: testResult.OverallDuration.Minutes(),
+		Success:     true,
 	}
 
 	// Combined crypto time (address creation + signing)
 	combinedCryptoTime := testResult.AddressCreationDuration + testResult.SigningDuration
 	result.RealMetrics.CombinedCryptoTime = OperationMetrics{
-		Duration:   combinedCryptoTime,
-		DurationMs: combinedCryptoTime.Milliseconds(),
-		Success:    true,
+		Duration:    combinedCryptoTime,
+		DurationMs:  combinedCryptoTime.Milliseconds(),
+		DurationSec: combinedCryptoTime.Seconds(),
+		DurationMin: combinedCryptoTime.Minutes(),
+		Success:     true,
 	}
 
 	// Step 2: Generate simulated metrics using combined crypto time
@@ -251,18 +265,27 @@ func testCombinedMuSig2Configuration(t *testing.T, rpc *BitcoinRPC, detector *be
 	benchmarkMetrics := detector.SimulateParticipants(participants, config.NetworkLatency, simulationOperation)
 
 	// Store simulated metrics
+	totalSimulatedTime := benchmarkMetrics.AdjustedDuration + benchmarkMetrics.NetworkLatencyTotal
 	result.SimulatedMetrics = SimulatedOperationMetrics{
-		OperationDuration:     benchmarkMetrics.OperationDuration,
-		OperationDurationMs:   benchmarkMetrics.OperationDuration.Milliseconds(),
-		AdjustedDuration:      benchmarkMetrics.AdjustedDuration,
-		AdjustedDurationMs:    benchmarkMetrics.AdjustedDuration.Milliseconds(),
-		NetworkLatencyTotal:   benchmarkMetrics.NetworkLatencyTotal,
-		NetworkLatencyTotalMs: benchmarkMetrics.NetworkLatencyTotal.Milliseconds(),
-		TotalSimulatedTime:    benchmarkMetrics.AdjustedDuration + benchmarkMetrics.NetworkLatencyTotal,
-		TotalSimulatedTimeMs:  (benchmarkMetrics.AdjustedDuration + benchmarkMetrics.NetworkLatencyTotal).Milliseconds(),
-		ScalingFactor:         benchmarkMetrics.ComplexityFactor,
-		SimulatedCores:        benchmarkMetrics.SimulatedCores,
-		LinearScaling:         benchmarkMetrics.LinearScaling,
+		OperationDuration:      benchmarkMetrics.OperationDuration,
+		OperationDurationMs:    benchmarkMetrics.OperationDuration.Milliseconds(),
+		OperationDurationSec:   benchmarkMetrics.OperationDuration.Seconds(),
+		OperationDurationMin:   benchmarkMetrics.OperationDuration.Minutes(),
+		AdjustedDuration:       benchmarkMetrics.AdjustedDuration,
+		AdjustedDurationMs:     benchmarkMetrics.AdjustedDuration.Milliseconds(),
+		AdjustedDurationSec:    benchmarkMetrics.AdjustedDuration.Seconds(),
+		AdjustedDurationMin:    benchmarkMetrics.AdjustedDuration.Minutes(),
+		NetworkLatencyTotal:    benchmarkMetrics.NetworkLatencyTotal,
+		NetworkLatencyTotalMs:  benchmarkMetrics.NetworkLatencyTotal.Milliseconds(),
+		NetworkLatencyTotalSec: benchmarkMetrics.NetworkLatencyTotal.Seconds(),
+		NetworkLatencyTotalMin: benchmarkMetrics.NetworkLatencyTotal.Minutes(),
+		TotalSimulatedTime:     totalSimulatedTime,
+		TotalSimulatedTimeMs:   totalSimulatedTime.Milliseconds(),
+		TotalSimulatedTimeSec:  totalSimulatedTime.Seconds(),
+		TotalSimulatedTimeMin:  totalSimulatedTime.Minutes(),
+		ScalingFactor:          benchmarkMetrics.ComplexityFactor,
+		SimulatedCores:         benchmarkMetrics.SimulatedCores,
+		LinearScaling:          benchmarkMetrics.LinearScaling,
 	}
 
 	// Store blockchain transactions
@@ -333,29 +356,37 @@ func testCombinedFROSTConfiguration(t *testing.T, rpc *BitcoinRPC, detector *ben
 
 	// Store real metrics
 	result.RealMetrics.MultisigAddressCreation = OperationMetrics{
-		Duration:   testResult.AddressCreationDuration,
-		DurationMs: testResult.AddressCreationDuration.Milliseconds(),
-		Success:    true,
+		Duration:    testResult.AddressCreationDuration,
+		DurationMs:  testResult.AddressCreationDuration.Milliseconds(),
+		DurationSec: testResult.AddressCreationDuration.Seconds(),
+		DurationMin: testResult.AddressCreationDuration.Minutes(),
+		Success:     true,
 	}
 
 	result.RealMetrics.TransactionSigning = OperationMetrics{
-		Duration:   testResult.SigningDuration,
-		DurationMs: testResult.SigningDuration.Milliseconds(),
-		Success:    true,
+		Duration:    testResult.SigningDuration,
+		DurationMs:  testResult.SigningDuration.Milliseconds(),
+		DurationSec: testResult.SigningDuration.Seconds(),
+		DurationMin: testResult.SigningDuration.Minutes(),
+		Success:     true,
 	}
 
 	result.RealMetrics.OverallWorkflow = OperationMetrics{
-		Duration:   testResult.OverallDuration,
-		DurationMs: testResult.OverallDuration.Milliseconds(),
-		Success:    true,
+		Duration:    testResult.OverallDuration,
+		DurationMs:  testResult.OverallDuration.Milliseconds(),
+		DurationSec: testResult.OverallDuration.Seconds(),
+		DurationMin: testResult.OverallDuration.Minutes(),
+		Success:     true,
 	}
 
 	// Combined crypto time (address creation + signing)
-	combinedCryptoTime := testResult.AddressCreationDuration + testResult.SigningDuration
+	combinedCryptoTimeFROST := testResult.AddressCreationDuration + testResult.SigningDuration
 	result.RealMetrics.CombinedCryptoTime = OperationMetrics{
-		Duration:   combinedCryptoTime,
-		DurationMs: combinedCryptoTime.Milliseconds(),
-		Success:    true,
+		Duration:    combinedCryptoTimeFROST,
+		DurationMs:  combinedCryptoTimeFROST.Milliseconds(),
+		DurationSec: combinedCryptoTimeFROST.Seconds(),
+		DurationMin: combinedCryptoTimeFROST.Minutes(),
+		Success:     true,
 	}
 
 	// Step 2: Generate simulated metrics using combined crypto time
@@ -363,25 +394,34 @@ func testCombinedFROSTConfiguration(t *testing.T, rpc *BitcoinRPC, detector *ben
 
 	// Create operation that returns the combined crypto time
 	simulationOperation := func() time.Duration {
-		return combinedCryptoTime // Use real measured combined time as base
+		return combinedCryptoTimeFROST // Use real measured combined time as base
 	}
 
 	// Run simulation
-	benchmarkMetrics := detector.SimulateParticipants(participants, config.NetworkLatency, simulationOperation)
+	benchmarkMetricsFROST := detector.SimulateParticipants(participants, config.NetworkLatency, simulationOperation)
 
 	// Store simulated metrics
+	totalSimulatedTimeFROST := benchmarkMetricsFROST.AdjustedDuration + benchmarkMetricsFROST.NetworkLatencyTotal
 	result.SimulatedMetrics = SimulatedOperationMetrics{
-		OperationDuration:     benchmarkMetrics.OperationDuration,
-		OperationDurationMs:   benchmarkMetrics.OperationDuration.Milliseconds(),
-		AdjustedDuration:      benchmarkMetrics.AdjustedDuration,
-		AdjustedDurationMs:    benchmarkMetrics.AdjustedDuration.Milliseconds(),
-		NetworkLatencyTotal:   benchmarkMetrics.NetworkLatencyTotal,
-		NetworkLatencyTotalMs: benchmarkMetrics.NetworkLatencyTotal.Milliseconds(),
-		TotalSimulatedTime:    benchmarkMetrics.AdjustedDuration + benchmarkMetrics.NetworkLatencyTotal,
-		TotalSimulatedTimeMs:  (benchmarkMetrics.AdjustedDuration + benchmarkMetrics.NetworkLatencyTotal).Milliseconds(),
-		ScalingFactor:         benchmarkMetrics.ComplexityFactor,
-		SimulatedCores:        benchmarkMetrics.SimulatedCores,
-		LinearScaling:         benchmarkMetrics.LinearScaling,
+		OperationDuration:      benchmarkMetricsFROST.OperationDuration,
+		OperationDurationMs:    benchmarkMetricsFROST.OperationDuration.Milliseconds(),
+		OperationDurationSec:   benchmarkMetricsFROST.OperationDuration.Seconds(),
+		OperationDurationMin:   benchmarkMetricsFROST.OperationDuration.Minutes(),
+		AdjustedDuration:       benchmarkMetricsFROST.AdjustedDuration,
+		AdjustedDurationMs:     benchmarkMetricsFROST.AdjustedDuration.Milliseconds(),
+		AdjustedDurationSec:    benchmarkMetricsFROST.AdjustedDuration.Seconds(),
+		AdjustedDurationMin:    benchmarkMetricsFROST.AdjustedDuration.Minutes(),
+		NetworkLatencyTotal:    benchmarkMetricsFROST.NetworkLatencyTotal,
+		NetworkLatencyTotalMs:  benchmarkMetricsFROST.NetworkLatencyTotal.Milliseconds(),
+		NetworkLatencyTotalSec: benchmarkMetricsFROST.NetworkLatencyTotal.Seconds(),
+		NetworkLatencyTotalMin: benchmarkMetricsFROST.NetworkLatencyTotal.Minutes(),
+		TotalSimulatedTime:     totalSimulatedTimeFROST,
+		TotalSimulatedTimeMs:   totalSimulatedTimeFROST.Milliseconds(),
+		TotalSimulatedTimeSec:  totalSimulatedTimeFROST.Seconds(),
+		TotalSimulatedTimeMin:  totalSimulatedTimeFROST.Minutes(),
+		ScalingFactor:          benchmarkMetricsFROST.ComplexityFactor,
+		SimulatedCores:         benchmarkMetricsFROST.SimulatedCores,
+		LinearScaling:          benchmarkMetricsFROST.LinearScaling,
 	}
 
 	// Store blockchain transactions
@@ -408,8 +448,8 @@ func testCombinedFROSTConfiguration(t *testing.T, rpc *BitcoinRPC, detector *ben
 	})
 
 	// Check performance targets
-	result.RealPerformanceTarget = combinedCryptoTime <= MaxCombinedOperationDuration
-	result.SimulatedPerformanceTarget = benchmark.ValidatePerformanceTarget(benchmarkMetrics, config)
+	result.RealPerformanceTarget = combinedCryptoTimeFROST <= MaxCombinedOperationDuration
+	result.SimulatedPerformanceTarget = benchmark.ValidatePerformanceTarget(benchmarkMetricsFROST, config)
 
 	// Record resource usage
 	result.ResourceUsage = ResourceUsageMetrics{
@@ -419,7 +459,7 @@ func testCombinedFROSTConfiguration(t *testing.T, rpc *BitcoinRPC, detector *ben
 	}
 
 	t.Logf("Real crypto time: %v, Simulated total time: %v",
-		combinedCryptoTime, result.SimulatedMetrics.TotalSimulatedTime)
+		combinedCryptoTimeFROST, result.SimulatedMetrics.TotalSimulatedTime)
 
 	return result, nil
 }
@@ -438,12 +478,16 @@ func generateCombinedComparison(musig2Results, frostResults []CombinedConfigurat
 		if i < len(frostResults) {
 			frost := frostResults[i]
 			comparison.RealAddressCreationComparison = append(comparison.RealAddressCreationComparison, ParticipantComparison{
-				ParticipantCount: musig2.ParticipantCount,
-				MuSig2Duration:   musig2.RealMetrics.MultisigAddressCreation.Duration,
-				FROSTDuration:    frost.RealMetrics.MultisigAddressCreation.Duration,
-				MuSig2DurationMs: musig2.RealMetrics.MultisigAddressCreation.DurationMs,
-				FROSTDurationMs:  frost.RealMetrics.MultisigAddressCreation.DurationMs,
-				PerformanceRatio: float64(frost.RealMetrics.MultisigAddressCreation.DurationMs) / float64(musig2.RealMetrics.MultisigAddressCreation.DurationMs),
+				ParticipantCount:  musig2.ParticipantCount,
+				MuSig2Duration:    musig2.RealMetrics.MultisigAddressCreation.Duration,
+				FROSTDuration:     frost.RealMetrics.MultisigAddressCreation.Duration,
+				MuSig2DurationMs:  musig2.RealMetrics.MultisigAddressCreation.DurationMs,
+				MuSig2DurationSec: musig2.RealMetrics.MultisigAddressCreation.DurationSec,
+				MuSig2DurationMin: musig2.RealMetrics.MultisigAddressCreation.DurationMin,
+				FROSTDurationMs:   frost.RealMetrics.MultisigAddressCreation.DurationMs,
+				FROSTDurationSec:  frost.RealMetrics.MultisigAddressCreation.DurationSec,
+				FROSTDurationMin:  frost.RealMetrics.MultisigAddressCreation.DurationMin,
+				PerformanceRatio:  float64(frost.RealMetrics.MultisigAddressCreation.DurationMs) / float64(musig2.RealMetrics.MultisigAddressCreation.DurationMs),
 				RecommendedScheme: func() string {
 					if musig2.RealMetrics.MultisigAddressCreation.Duration < frost.RealMetrics.MultisigAddressCreation.Duration {
 						return "MuSig2"
@@ -459,12 +503,16 @@ func generateCombinedComparison(musig2Results, frostResults []CombinedConfigurat
 		if i < len(frostResults) {
 			frost := frostResults[i]
 			comparison.RealSigningComparison = append(comparison.RealSigningComparison, ParticipantComparison{
-				ParticipantCount: musig2.ParticipantCount,
-				MuSig2Duration:   musig2.RealMetrics.TransactionSigning.Duration,
-				FROSTDuration:    frost.RealMetrics.TransactionSigning.Duration,
-				MuSig2DurationMs: musig2.RealMetrics.TransactionSigning.DurationMs,
-				FROSTDurationMs:  frost.RealMetrics.TransactionSigning.DurationMs,
-				PerformanceRatio: float64(frost.RealMetrics.TransactionSigning.DurationMs) / float64(musig2.RealMetrics.TransactionSigning.DurationMs),
+				ParticipantCount:  musig2.ParticipantCount,
+				MuSig2Duration:    musig2.RealMetrics.TransactionSigning.Duration,
+				FROSTDuration:     frost.RealMetrics.TransactionSigning.Duration,
+				MuSig2DurationMs:  musig2.RealMetrics.TransactionSigning.DurationMs,
+				MuSig2DurationSec: musig2.RealMetrics.TransactionSigning.DurationSec,
+				MuSig2DurationMin: musig2.RealMetrics.TransactionSigning.DurationMin,
+				FROSTDurationMs:   frost.RealMetrics.TransactionSigning.DurationMs,
+				FROSTDurationSec:  frost.RealMetrics.TransactionSigning.DurationSec,
+				FROSTDurationMin:  frost.RealMetrics.TransactionSigning.DurationMin,
+				PerformanceRatio:  float64(frost.RealMetrics.TransactionSigning.DurationMs) / float64(musig2.RealMetrics.TransactionSigning.DurationMs),
 				RecommendedScheme: func() string {
 					if musig2.RealMetrics.TransactionSigning.Duration < frost.RealMetrics.TransactionSigning.Duration {
 						return "MuSig2"
@@ -480,12 +528,16 @@ func generateCombinedComparison(musig2Results, frostResults []CombinedConfigurat
 		if i < len(frostResults) {
 			frost := frostResults[i]
 			comparison.SimulatedCryptoComparison = append(comparison.SimulatedCryptoComparison, ParticipantComparison{
-				ParticipantCount: musig2.ParticipantCount,
-				MuSig2Duration:   musig2.SimulatedMetrics.TotalSimulatedTime,
-				FROSTDuration:    frost.SimulatedMetrics.TotalSimulatedTime,
-				MuSig2DurationMs: musig2.SimulatedMetrics.TotalSimulatedTimeMs,
-				FROSTDurationMs:  frost.SimulatedMetrics.TotalSimulatedTimeMs,
-				PerformanceRatio: float64(frost.SimulatedMetrics.TotalSimulatedTimeMs) / float64(musig2.SimulatedMetrics.TotalSimulatedTimeMs),
+				ParticipantCount:  musig2.ParticipantCount,
+				MuSig2Duration:    musig2.SimulatedMetrics.TotalSimulatedTime,
+				FROSTDuration:     frost.SimulatedMetrics.TotalSimulatedTime,
+				MuSig2DurationMs:  musig2.SimulatedMetrics.TotalSimulatedTimeMs,
+				MuSig2DurationSec: musig2.SimulatedMetrics.TotalSimulatedTimeSec,
+				MuSig2DurationMin: musig2.SimulatedMetrics.TotalSimulatedTimeMin,
+				FROSTDurationMs:   frost.SimulatedMetrics.TotalSimulatedTimeMs,
+				FROSTDurationSec:  frost.SimulatedMetrics.TotalSimulatedTimeSec,
+				FROSTDurationMin:  frost.SimulatedMetrics.TotalSimulatedTimeMin,
+				PerformanceRatio:  float64(frost.SimulatedMetrics.TotalSimulatedTimeMs) / float64(musig2.SimulatedMetrics.TotalSimulatedTimeMs),
 				RecommendedScheme: func() string {
 					if musig2.SimulatedMetrics.TotalSimulatedTime < frost.SimulatedMetrics.TotalSimulatedTime {
 						return "MuSig2"
@@ -499,13 +551,17 @@ func generateCombinedComparison(musig2Results, frostResults []CombinedConfigurat
 	// Compare real vs simulated for each scheme
 	for _, result := range musig2Results {
 		comparison.RealVsSimulatedComparison = append(comparison.RealVsSimulatedComparison, RealVsSimulatedComp{
-			ParticipantCount:     result.ParticipantCount,
-			Scheme:               "MuSig2",
-			RealCryptoTime:       result.RealMetrics.CombinedCryptoTime.Duration,
-			SimulatedTotalTime:   result.SimulatedMetrics.TotalSimulatedTime,
-			RealCryptoTimeMs:     result.RealMetrics.CombinedCryptoTime.DurationMs,
-			SimulatedTotalTimeMs: result.SimulatedMetrics.TotalSimulatedTimeMs,
-			SimulationOverhead:   float64(result.SimulatedMetrics.TotalSimulatedTimeMs) / float64(result.RealMetrics.CombinedCryptoTime.DurationMs),
+			ParticipantCount:      result.ParticipantCount,
+			Scheme:                "MuSig2",
+			RealCryptoTime:        result.RealMetrics.CombinedCryptoTime.Duration,
+			SimulatedTotalTime:    result.SimulatedMetrics.TotalSimulatedTime,
+			RealCryptoTimeMs:      result.RealMetrics.CombinedCryptoTime.DurationMs,
+			RealCryptoTimeSec:     result.RealMetrics.CombinedCryptoTime.DurationSec,
+			RealCryptoTimeMin:     result.RealMetrics.CombinedCryptoTime.DurationMin,
+			SimulatedTotalTimeMs:  result.SimulatedMetrics.TotalSimulatedTimeMs,
+			SimulatedTotalTimeSec: result.SimulatedMetrics.TotalSimulatedTimeSec,
+			SimulatedTotalTimeMin: result.SimulatedMetrics.TotalSimulatedTimeMin,
+			SimulationOverhead:    float64(result.SimulatedMetrics.TotalSimulatedTimeMs) / float64(result.RealMetrics.CombinedCryptoTime.DurationMs),
 			RecommendedEstimate: func() string {
 				if result.SimulatedMetrics.TotalSimulatedTime > result.RealMetrics.CombinedCryptoTime.Duration {
 					return "Simulation provides conservative estimate"
@@ -517,13 +573,17 @@ func generateCombinedComparison(musig2Results, frostResults []CombinedConfigurat
 
 	for _, result := range frostResults {
 		comparison.RealVsSimulatedComparison = append(comparison.RealVsSimulatedComparison, RealVsSimulatedComp{
-			ParticipantCount:     result.ParticipantCount,
-			Scheme:               "FROST",
-			RealCryptoTime:       result.RealMetrics.CombinedCryptoTime.Duration,
-			SimulatedTotalTime:   result.SimulatedMetrics.TotalSimulatedTime,
-			RealCryptoTimeMs:     result.RealMetrics.CombinedCryptoTime.DurationMs,
-			SimulatedTotalTimeMs: result.SimulatedMetrics.TotalSimulatedTimeMs,
-			SimulationOverhead:   float64(result.SimulatedMetrics.TotalSimulatedTimeMs) / float64(result.RealMetrics.CombinedCryptoTime.DurationMs),
+			ParticipantCount:      result.ParticipantCount,
+			Scheme:                "FROST",
+			RealCryptoTime:        result.RealMetrics.CombinedCryptoTime.Duration,
+			SimulatedTotalTime:    result.SimulatedMetrics.TotalSimulatedTime,
+			RealCryptoTimeMs:      result.RealMetrics.CombinedCryptoTime.DurationMs,
+			RealCryptoTimeSec:     result.RealMetrics.CombinedCryptoTime.DurationSec,
+			RealCryptoTimeMin:     result.RealMetrics.CombinedCryptoTime.DurationMin,
+			SimulatedTotalTimeMs:  result.SimulatedMetrics.TotalSimulatedTimeMs,
+			SimulatedTotalTimeSec: result.SimulatedMetrics.TotalSimulatedTimeSec,
+			SimulatedTotalTimeMin: result.SimulatedMetrics.TotalSimulatedTimeMin,
+			SimulationOverhead:    float64(result.SimulatedMetrics.TotalSimulatedTimeMs) / float64(result.RealMetrics.CombinedCryptoTime.DurationMs),
 			RecommendedEstimate: func() string {
 				if result.SimulatedMetrics.TotalSimulatedTime > result.RealMetrics.CombinedCryptoTime.Duration {
 					return "Simulation provides conservative estimate"
