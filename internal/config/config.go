@@ -140,10 +140,6 @@ func validateNetworkConfig(cfg *types.NetworkConfig) error {
 }
 
 func validatePeersConfig(cfg *types.PeersConfig) error {
-	if cfg.ExchangeInterval < time.Second {
-		return fmt.Errorf("peers.exchange_interval must be at least 1 second")
-	}
-
 	if cfg.ConnectionTimeout < time.Second {
 		return fmt.Errorf("peers.connection_timeout must be at least 1 second")
 	}

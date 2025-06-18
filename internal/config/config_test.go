@@ -56,10 +56,9 @@ node:
 
 network:
   addresses:
-    - "/ip4/0.0.0.0/udp/9000/quic"
+    - "/ip4/0.0.0.0/tcp/9000"
 
 peers:
-  exchange_interval: "30s"
   connection_timeout: "10s"
 
 logging:
@@ -82,9 +81,6 @@ logging:
 		}
 		if len(cfg.Network.Addresses) == 0 {
 			t.Error("Expected network addresses to be loaded")
-		}
-		if cfg.Peers.ExchangeInterval != 30*time.Second {
-			t.Error("Expected exchange interval to be 30s")
 		}
 	})
 
@@ -126,10 +122,9 @@ func TestManager_ValidateConfig(t *testing.T) {
 				PrivateKey: testKey,
 			},
 			Network: types.NetworkConfig{
-				Addresses: []string{"/ip4/0.0.0.0/udp/9000/quic"},
+				Addresses: []string{"/ip4/0.0.0.0/tcp/9000"},
 			},
 			Peers: types.PeersConfig{
-				ExchangeInterval:  30 * time.Second,
 				ConnectionTimeout: 10 * time.Second,
 			},
 			Logging: types.LoggingConfig{
@@ -170,16 +165,6 @@ func TestManager_ValidateConfig(t *testing.T) {
 			t.Fatal("Expected error for invalid log level")
 		}
 	})
-
-	t.Run("rejects too short intervals", func(t *testing.T) {
-		cfg := types.DefaultConfig()
-		cfg.Peers.ExchangeInterval = 500 * time.Millisecond
-
-		err := manager.ValidateConfig(cfg)
-		if err == nil {
-			t.Fatal("Expected error for too short exchange interval")
-		}
-	})
 }
 
 func TestValidateMultiaddr(t *testing.T) {
@@ -188,12 +173,12 @@ func TestValidateMultiaddr(t *testing.T) {
 		addr    string
 		wantErr bool
 	}{
-		{"valid IPv4", "/ip4/192.168.1.1/udp/9000/quic", false},
-		{"valid IPv6", "/ip6/::1/udp/9000/quic", false},
-		{"valid DNS4", "/dns4/example.com/udp/9000/quic", false},
-		{"valid DNS6", "/dns6/example.com/udp/9000/quic", false},
+		{"valid IPv4", "/ip4/192.168.1.1/tcp/9000", false},
+		{"valid IPv6", "/ip6/::1/tcp/9000", false},
+		{"valid DNS4", "/dns4/example.com/tcp/9000", false},
+		{"valid DNS6", "/dns6/example.com/tcp/9000", false},
 		{"empty address", "", true},
-		{"no leading slash", "ip4/192.168.1.1/udp/9000/quic", true},
+		{"no leading slash", "ip4/192.168.1.1/tcp/9000", true},
 		{"invalid format", "/invalid/format", true},
 		{"missing protocol", "/ip4/192.168.1.1", true},
 	}
