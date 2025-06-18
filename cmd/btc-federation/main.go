@@ -29,7 +29,7 @@ func main() {
 	fmt.Printf("BTC Federation Node starting with config: %+v\n", cfg)
 
 	// Initialize network manager
-	networkManager, err := network.NewManager(&cfg.Network, cfg.Node.PrivateKey)
+	networkManager, err := network.NewManager(cfg)
 	if err != nil {
 		log.Fatalf("Failed to create network manager: %v", err)
 	}
@@ -43,6 +43,11 @@ func main() {
 	fmt.Println("Node started successfully")
 	fmt.Printf("Peer ID: %s\n", networkManager.GetHost().ID())
 	fmt.Printf("Listening addresses: %v\n", networkManager.GetHost().Addrs())
+	
+	// Print public key for peer configuration
+	if pubKey := networkManager.GetHost().ID(); pubKey != "" {
+		fmt.Printf("For peers.yaml, use peer ID: %s\n", pubKey)
+	}
 
 	// Set up graceful shutdown
 	sigChan := make(chan os.Signal, 1)

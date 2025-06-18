@@ -13,16 +13,23 @@ import (
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/multiformats/go-multiaddr"
 
+	"btc-federation/internal/storage"
 	"btc-federation/internal/types"
 )
 
 // Manager implements the NetworkManager interface
 type Manager struct {
 	// Configuration
-	config *types.NetworkConfig
+	config      *types.NetworkConfig
+	peersConfig *types.PeersConfig
 
 	// libp2p host wrapper
 	hostWrapper *HostWrapper
+
+	// Peer storage and management
+	peerStorage  storage.PeerStorage
+	peerHandlers map[string]*PeerHandler
+	peerMutex    sync.RWMutex
 
 	// Protocol handlers
 	protocolHandlers map[protocol.ID]ProtocolHandler
@@ -46,15 +53,15 @@ type Manager struct {
 }
 
 // NewManager creates a new network manager with the given configuration
-func NewManager(config *types.NetworkConfig, privateKeyBase64 string) (*Manager, error) {
+func NewManager(config *types.Config) (*Manager, error) {
 	if config == nil {
 		return nil, fmt.Errorf("config cannot be nil")
 	}
 
 	// Convert private key to libp2p format
 	var privateKey crypto.PrivKey
-	if privateKeyBase64 != "" {
-		key, err := ConvertPrivateKeyFromBase64(privateKeyBase64)
+	if config.Node.PrivateKey != "" {
+		key, err := ConvertPrivateKeyFromBase64(config.Node.PrivateKey)
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert private key: %w", err)
 		}
@@ -62,16 +69,22 @@ func NewManager(config *types.NetworkConfig, privateKeyBase64 string) (*Manager,
 	}
 
 	// Create host wrapper
-	hostWrapper, err := NewHostWrapper(config, privateKey)
+	hostWrapper, err := NewHostWrapper(&config.Network, privateKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create host wrapper: %w", err)
 	}
 
+	// Initialize peer storage
+	peerStorage := storage.NewFilePeerStorage("peers.yaml")
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	manager := &Manager{
-		config:           config,
+		config:           &config.Network,
+		peersConfig:      &config.Peers,
 		hostWrapper:      hostWrapper,
+		peerStorage:      peerStorage,
+		peerHandlers:     make(map[string]*PeerHandler),
 		protocolHandlers: make(map[protocol.ID]ProtocolHandler),
 		connections:      make(map[peer.ID]*ConnectionInfo),
 		ctx:              ctx,
@@ -93,14 +106,21 @@ func (m *Manager) Start(ctx context.Context) error {
 	// Register network event handlers
 	m.hostWrapper.Host().Network().Notify(&networkNotifiee{manager: m})
 
-	// Register default protocol handler for peer exchange (Task 2.4 preparation)
-	m.registerDefaultProtocols()
-
 	m.isStarted = true
 
 	// Log successful start
 	// TODO: Use proper logging system
 	fmt.Printf("Network manager started successfully. Listening on: %v\n", m.hostWrapper.Host().Addrs())
+
+	// Print peer ID for configuration
+	peerID := m.hostWrapper.Host().ID()
+	fmt.Printf("NODE_PEER_ID: %s\n", peerID)
+
+	// Load peers and perform bootstrap validation
+	if err := m.initializePeers(ctx); err != nil {
+		m.Stop()
+		return fmt.Errorf("bootstrap validation failed: %w", err)
+	}
 
 	return nil
 }
@@ -121,6 +141,14 @@ func (m *Manager) Stop() error {
 	if err := m.hostWrapper.Close(); err != nil {
 		return fmt.Errorf("failed to close host wrapper: %w", err)
 	}
+
+	// Stop all peer handlers
+	m.peerMutex.Lock()
+	for _, handler := range m.peerHandlers {
+		handler.Stop()
+	}
+	m.peerHandlers = make(map[string]*PeerHandler)
+	m.peerMutex.Unlock()
 
 	// Clear connections
 	m.connectionsMutex.Lock()
@@ -266,18 +294,6 @@ func (m *Manager) GetCurrentConfig() *types.NetworkConfig {
 	return m.config
 }
 
-// registerDefaultProtocols registers the default protocols for peer exchange
-func (m *Manager) registerDefaultProtocols() {
-	// Register placeholder for vtcp/btc-foundation/v1.0.0 protocol
-	// This will be fully implemented in Task 2.4
-	protocolID := protocol.ID("/vtcp/btc-foundation/v1.0.0")
-	m.hostWrapper.Host().SetStreamHandler(protocolID, func(stream network.Stream) {
-		// Placeholder handler - will be replaced in Task 2.4
-		defer stream.Close()
-		// TODO: Implement proper peer exchange protocol
-	})
-}
-
 // emitConnectionEvent emits a connection event to all registered handlers
 func (m *Manager) emitConnectionEvent(eventType ConnectionEventType, peerID peer.ID, addr multiaddr.Multiaddr, err error) {
 	m.connectionHandlersMutex.RLock()
@@ -325,5 +341,234 @@ func (m *Manager) updateConnectionState(peerID peer.ID, state ConnectionState, a
 			ConnectedAt: now,
 			LastSeen:    now,
 		}
+	}
+}
+
+// initializePeers loads peers from storage and performs bootstrap validation
+func (m *Manager) initializePeers(ctx context.Context) error {
+	// Load peers from storage
+	if err := m.peerStorage.LoadPeers(); err != nil {
+		return fmt.Errorf("failed to load peers: %w", err)
+	}
+
+	peers, err := m.peerStorage.GetPeers()
+	if err != nil {
+		return fmt.Errorf("failed to get peers: %w", err)
+	}
+
+	if len(peers) == 0 {
+		fmt.Println("NetworkManager: No peers configured - running in standalone mode")
+		return nil
+	}
+
+	fmt.Printf("NetworkManager: Loaded %d peers from storage\n", len(peers))
+
+	// Create peer handlers for each peer
+	for _, peer := range peers {
+		handler, err := NewPeerHandler(peer, m.hostWrapper.Host(), m.peersConfig.ConnectionTimeout)
+		if err != nil {
+			fmt.Printf("NetworkManager: Failed to create handler for peer %s: %v\n",
+				peer.PublicKey[:min(20, len(peer.PublicKey))], err)
+			continue
+		}
+
+		// Set state change callback to track connection status
+		handler.SetStateChangeCallback(m.onPeerStateChange)
+
+		m.peerMutex.Lock()
+		m.peerHandlers[peer.PublicKey] = handler
+		m.peerMutex.Unlock()
+
+		// Start the peer handler
+		handler.Start()
+	}
+
+	// Bootstrap validation: wait for at least one successful connection
+	return m.waitForBootstrap(ctx)
+}
+
+// waitForBootstrap waits for at least one peer connection to be established
+func (m *Manager) waitForBootstrap(ctx context.Context) error {
+	bootstrapTimeout := time.Minute * 2 // Allow 2 minutes for bootstrap
+	deadline := time.Now().Add(bootstrapTimeout)
+
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	fmt.Printf("NetworkManager: Waiting for bootstrap connections (timeout: %v)...\n", bootstrapTimeout)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			if time.Now().After(deadline) {
+				connectedCount := m.getConnectedPeerCount()
+				return fmt.Errorf("bootstrap timeout: only %d peers connected after %v",
+					connectedCount, bootstrapTimeout)
+			}
+
+			connectedCount := m.getConnectedPeerCount()
+			if connectedCount > 0 {
+				fmt.Printf("NetworkManager: Bootstrap successful - %d peers connected\n", connectedCount)
+				return nil
+			}
+
+			// Check if all peers have permanently failed
+			if m.allPeersPermanentlyFailed() {
+				return fmt.Errorf("bootstrap failed: all peers permanently failed")
+			}
+		}
+	}
+}
+
+// getConnectedPeerCount returns the number of currently connected peers
+func (m *Manager) getConnectedPeerCount() int {
+	m.peerMutex.RLock()
+	defer m.peerMutex.RUnlock()
+
+	connected := 0
+	for _, handler := range m.peerHandlers {
+		if handler.IsConnected() {
+			connected++
+		}
+	}
+	return connected
+}
+
+// allPeersPermanentlyFailed checks if all peers have permanently failed
+func (m *Manager) allPeersPermanentlyFailed() bool {
+	m.peerMutex.RLock()
+	defer m.peerMutex.RUnlock()
+
+	for _, handler := range m.peerHandlers {
+		state := handler.GetState()
+		if state != PeerStatePermanentFailure {
+			return false
+		}
+	}
+	return len(m.peerHandlers) > 0 // Only return true if we have handlers and all failed
+}
+
+// onPeerStateChange handles peer state changes
+func (m *Manager) onPeerStateChange(handler *PeerHandler, oldState, newState PeerState) {
+	peer := handler.GetPeer()
+	fmt.Printf("NetworkManager: Peer %s state changed: %s -> %s\n",
+		peer.PublicKey[:min(20, len(peer.PublicKey))], oldState, newState)
+
+	// Update connection tracking based on state
+	if newState == PeerStateConnected {
+		peerID := handler.GetPeerID()
+		if peerID != "" {
+			m.updateConnectionState(peerID, StateConnected, handler.GetCurrentAddress())
+		}
+	} else if oldState == PeerStateConnected {
+		peerID := handler.GetPeerID()
+		if peerID != "" {
+			m.updateConnectionState(peerID, StateFailed, nil)
+		}
+	}
+}
+
+// handleIncomingConnection processes incoming connections and updates peer handlers immediately
+func (m *Manager) handleIncomingConnection(peerID peer.ID, conn network.Conn) {
+	m.peerMutex.RLock()
+	defer m.peerMutex.RUnlock()
+
+	// Find peer handler that matches this connection
+	for _, handler := range m.peerHandlers {
+		if handler.matchesPeerID(peerID) {
+			// Found matching peer handler - immediately update it to connected state
+			fmt.Printf("NetworkManager: Incoming connection matched configured peer, updating state immediately\n")
+			handler.adoptIncomingConnection(conn)
+			return
+		}
+	}
+
+	// No configured peer handler found - this is fine, just log it
+	fmt.Printf("NetworkManager: Received connection from unconfigured peer %s\n", peerID.String())
+}
+
+// GetPeerHandlers returns information about all peer handlers
+func (m *Manager) GetPeerHandlers() map[string]*PeerHandler {
+	m.peerMutex.RLock()
+	defer m.peerMutex.RUnlock()
+
+	// Return a copy to prevent external modification
+	handlers := make(map[string]*PeerHandler)
+	for key, handler := range m.peerHandlers {
+		handlers[key] = handler
+	}
+	return handlers
+}
+
+// Helper function for minimum of two integers
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+// handleConnectionDeduplication checks for and handles redundant connections
+// Returns true if the connection was closed due to deduplication
+func (m *Manager) handleConnectionDeduplication(newConn network.Conn) bool {
+	peerID := newConn.RemotePeer()
+
+	// Get all existing connections to this peer
+	existingConns := m.hostWrapper.Host().Network().ConnsToPeer(peerID)
+
+	fmt.Printf("DEDUP DEBUG: Checking connection to peer %s\n", peerID.String())
+	fmt.Printf("DEDUP DEBUG: Found %d existing connections to this peer\n", len(existingConns))
+	for i, conn := range existingConns {
+		fmt.Printf("DEDUP DEBUG: Connection %d: opened=%v, direction=%s\n",
+			i, conn.Stat().Opened, conn.Stat().Direction)
+	}
+
+	// If we only have one connection (the new one), no deduplication needed
+	if len(existingConns) <= 1 {
+		fmt.Printf("DEDUP DEBUG: Only %d connection(s), no deduplication needed\n", len(existingConns))
+		return false
+	}
+
+	// We have multiple connections to the same peer - need to deduplicate
+	fmt.Printf("Connection deduplication: Found %d connections to peer %s\n",
+		len(existingConns), peerID.String())
+
+	// Strategy: Keep the oldest connection, close newer ones
+	// This prevents the race condition where both sides close connections
+	oldestConn := existingConns[0]
+	for _, conn := range existingConns {
+		// Find the connection that was opened first (has lowest ID or earliest timestamp)
+		if conn.Stat().Opened.Before(oldestConn.Stat().Opened) {
+			oldestConn = conn
+		}
+	}
+
+	// If the new connection is the oldest (shouldn't happen but safety check)
+	if newConn == oldestConn {
+		// Close all other connections
+		fmt.Printf("Connection deduplication: Keeping new connection (oldest), closing %d newer connections\n",
+			len(existingConns)-1)
+
+		for _, conn := range existingConns {
+			if conn != newConn {
+				go func(c network.Conn) {
+					fmt.Printf("Connection deduplication: Closing connection %s (opened: %v)\n",
+						c.RemotePeer().String(), c.Stat().Opened)
+					c.Close()
+				}(conn)
+			}
+		}
+		return false // Don't close the new connection
+	} else {
+		// Close the new connection, keep the oldest existing one
+		fmt.Printf("Connection deduplication: Closing new connection (opened: %v), keeping oldest (opened: %v)\n",
+			newConn.Stat().Opened, oldestConn.Stat().Opened)
+
+		go func() {
+			newConn.Close()
+		}()
+		return true // New connection was closed
 	}
 }

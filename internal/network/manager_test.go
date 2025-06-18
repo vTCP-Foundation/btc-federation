@@ -3,6 +3,7 @@ package network
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -14,14 +15,22 @@ import (
 )
 
 func TestNewManager(t *testing.T) {
-	config := &types.NetworkConfig{
-		Addresses: []string{
-			"/ip4/127.0.0.1/tcp/0",
+	config := &types.Config{
+		Node: types.NodeConfig{
+			PrivateKey: "",
+		},
+		Network: types.NetworkConfig{
+			Addresses: []string{
+				"/ip4/127.0.0.1/tcp/0",
+			},
+		},
+		Peers: types.PeersConfig{
+			ConnectionTimeout: 10 * time.Second,
 		},
 	}
 
 	// Test with empty private key
-	manager, err := NewManager(config, "")
+	manager, err := NewManager(config)
 	if err != nil {
 		t.Fatalf("Failed to create manager: %v", err)
 	}
@@ -36,7 +45,21 @@ func TestNewManager(t *testing.T) {
 		t.Fatalf("Failed to generate private key: %v", err)
 	}
 
-	manager2, err := NewManager(config, privateKey)
+	configWithKey := &types.Config{
+		Node: types.NodeConfig{
+			PrivateKey: privateKey,
+		},
+		Network: types.NetworkConfig{
+			Addresses: []string{
+				"/ip4/127.0.0.1/tcp/0",
+			},
+		},
+		Peers: types.PeersConfig{
+			ConnectionTimeout: 10 * time.Second,
+		},
+	}
+
+	manager2, err := NewManager(configWithKey)
 	if err != nil {
 		t.Fatalf("Failed to create manager with private key: %v", err)
 	}
@@ -46,13 +69,21 @@ func TestNewManager(t *testing.T) {
 }
 
 func TestManagerLifecycle(t *testing.T) {
-	config := &types.NetworkConfig{
-		Addresses: []string{
-			"/ip4/127.0.0.1/tcp/0",
+	config := &types.Config{
+		Node: types.NodeConfig{
+			PrivateKey: "",
+		},
+		Network: types.NetworkConfig{
+			Addresses: []string{
+				"/ip4/127.0.0.1/tcp/0",
+			},
+		},
+		Peers: types.PeersConfig{
+			ConnectionTimeout: 10 * time.Second,
 		},
 	}
 
-	manager, err := NewManager(config, "")
+	manager, err := NewManager(config)
 	if err != nil {
 		t.Fatalf("Failed to create manager: %v", err)
 	}
@@ -128,11 +159,19 @@ func TestConfigValidation(t *testing.T) {
 }
 
 func TestProtocolHandling(t *testing.T) {
-	config := &types.NetworkConfig{
-		Addresses: []string{"/ip4/127.0.0.1/tcp/0"},
+	config := &types.Config{
+		Node: types.NodeConfig{
+			PrivateKey: "",
+		},
+		Network: types.NetworkConfig{
+			Addresses: []string{"/ip4/127.0.0.1/tcp/0"},
+		},
+		Peers: types.PeersConfig{
+			ConnectionTimeout: 10 * time.Second,
+		},
 	}
 
-	manager, err := NewManager(config, "")
+	manager, err := NewManager(config)
 	if err != nil {
 		t.Fatalf("Failed to create manager: %v", err)
 	}
@@ -169,11 +208,19 @@ func TestProtocolHandling(t *testing.T) {
 }
 
 func TestConnectionEventHandlers(t *testing.T) {
-	config := &types.NetworkConfig{
-		Addresses: []string{"/ip4/127.0.0.1/tcp/0"},
+	config := &types.Config{
+		Node: types.NodeConfig{
+			PrivateKey: "",
+		},
+		Network: types.NetworkConfig{
+			Addresses: []string{"/ip4/127.0.0.1/tcp/0"},
+		},
+		Peers: types.PeersConfig{
+			ConnectionTimeout: 10 * time.Second,
+		},
 	}
 
-	manager, err := NewManager(config, "")
+	manager, err := NewManager(config)
 	if err != nil {
 		t.Fatalf("Failed to create manager: %v", err)
 	}

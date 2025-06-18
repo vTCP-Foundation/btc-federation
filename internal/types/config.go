@@ -22,7 +22,6 @@ type NetworkConfig struct {
 
 // PeersConfig contains peer management configuration
 type PeersConfig struct {
-	ExchangeInterval  time.Duration `yaml:"exchange_interval" validate:"required,min=1s"`
 	ConnectionTimeout time.Duration `yaml:"connection_timeout" validate:"required,min=1s"`
 }
 
@@ -45,7 +44,6 @@ func DefaultConfig() *Config {
 			},
 		},
 		Peers: PeersConfig{
-			ExchangeInterval:  30 * time.Second,
 			ConnectionTimeout: 10 * time.Second,
 		},
 		Logging: LoggingConfig{

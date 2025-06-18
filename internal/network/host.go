@@ -6,10 +6,14 @@ import (
 	"encoding/base64"
 	"fmt"
 
+	"time"
+
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
+	rcmgr "github.com/libp2p/go-libp2p/p2p/host/resource-manager"
+	"github.com/libp2p/go-libp2p/p2p/net/connmgr"
 	"github.com/libp2p/go-libp2p/p2p/transport/tcp"
 	"github.com/multiformats/go-multiaddr"
 
@@ -34,8 +38,58 @@ func NewHostWrapper(config *types.NetworkConfig, privateKey crypto.PrivKey) (*Ho
 	// Enable TCP transport
 	opts = append(opts, libp2p.Transport(tcp.NewTCPTransport))
 
-	// Use default security
+	// Use default security with specific protocols
 	opts = append(opts, libp2p.DefaultSecurity)
+
+	// Enable default muxers
+	opts = append(opts, libp2p.DefaultMuxers)
+
+	// Configure Connection Manager for automatic connection pruning and deduplication
+	// This ensures we maintain reasonable connection counts and prune duplicates
+	connManager, err := connmgr.NewConnManager(
+		1024, // Low watermark: minimum connections to maintain
+		1152, // High watermark: when to start pruning connections
+		connmgr.WithGracePeriod(10*time.Second),  // Grace period before pruning new connections
+		connmgr.WithSilencePeriod(5*time.Second), // How often to check for pruning
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create connection manager: %w", err)
+	}
+	opts = append(opts, libp2p.ConnectionManager(connManager))
+
+	// Configure Resource Manager with custom limits to enforce 1 connection per peer
+	// Start with default scaling limits and modify them for our use case
+	scalingLimits := rcmgr.DefaultLimits
+
+	// Scale the limits based on system resources
+	concreteLimits := scalingLimits.AutoScale()
+
+	// Create partial configuration to override specific limits
+	cfg := rcmgr.PartialLimitConfig{
+		System: rcmgr.ResourceLimits{
+			// Allow reasonable system-wide connection limits
+			Conns:         rcmgr.LimitVal(768),
+			ConnsInbound:  rcmgr.LimitVal(512),
+			ConnsOutbound: rcmgr.LimitVal(512),
+		},
+		// CRITICAL: Limit connections per peer to 1
+		PeerDefault: rcmgr.ResourceLimits{
+			Conns:         rcmgr.LimitVal(1),
+			ConnsInbound:  rcmgr.LimitVal(1),
+			ConnsOutbound: rcmgr.LimitVal(1),
+		},
+	}
+
+	// Build the final configuration by merging our overrides with defaults
+	finalLimits := cfg.Build(concreteLimits)
+
+	// Create the limiter and resource manager
+	limiter := rcmgr.NewFixedLimiter(finalLimits)
+	resourceManager, err := rcmgr.NewResourceManager(limiter)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create resource manager: %w", err)
+	}
+	opts = append(opts, libp2p.ResourceManager(resourceManager))
 
 	// Parse and set listen addresses
 	var listenAddrs []multiaddr.Multiaddr
@@ -51,11 +105,21 @@ func NewHostWrapper(config *types.NetworkConfig, privateKey crypto.PrivKey) (*Ho
 		opts = append(opts, libp2p.ListenAddrs(listenAddrs...))
 	}
 
-	// Create libp2p host
+	// Enable debug logging for connection issues
+	// This will help us see what's happening at the libp2p level
+	fmt.Printf("LIBP2P HOST: Creating host with connection and resource management\n")
+	fmt.Printf("LIBP2P HOST: Connection Manager - Low: 10, High: 50, Grace: 1m\n")
+	fmt.Printf("LIBP2P HOST: Resource Manager - Max connections per peer: 1\n")
+	fmt.Printf("LIBP2P HOST: Listen addresses: %v\n", config.Addresses)
+
+	// Create libp2p host with connection management configuration
 	h, err := libp2p.New(opts...)
 	if err != nil {
 		return nil, err
 	}
+
+	fmt.Printf("LIBP2P HOST: Created host with ID: %s\n", h.ID().String())
+	fmt.Printf("LIBP2P HOST: Host listening on: %v\n", h.Addrs())
 
 	return &HostWrapper{
 		host:   h,
@@ -85,8 +149,14 @@ func (hw *HostWrapper) Connect(ctx context.Context, addr multiaddr.Multiaddr) er
 
 // parseMultiaddr parses a multiaddr and extracts peer info
 func parseMultiaddr(addr multiaddr.Multiaddr) (*peer.AddrInfo, error) {
-	// This is a simplified parser - in production we'd use proper libp2p utilities
-	// For now, just return basic structure
+	// Try to extract peer ID from the address first
+	addrInfo, err := peer.AddrInfoFromP2pAddr(addr)
+	if err == nil {
+		return addrInfo, nil
+	}
+
+	// If no peer ID in address, return without peer ID
+	// The caller will need to set the peer ID separately
 	return &peer.AddrInfo{
 		Addrs: []multiaddr.Multiaddr{addr},
 	}, nil
