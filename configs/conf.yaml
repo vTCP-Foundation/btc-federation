@@ -9,3 +9,8 @@ peers:
 logging:
     level: info
     format: json
+    console_output: true
+    console_color: true
+    file_output: true
+    file_name: btc-federation.log
+    file_max_size: 10MB

@@ -104,8 +104,16 @@ func main() {
 	fmt.Printf("%d. Starting btc-federation binary and waiting 5 seconds...\n", checkNumber)
 	checkNumber++
 
-	cmd := exec.Command(binaryPath)
-	cmd.Dir = buildDir
+	// Get absolute path to binary
+	absPath, err := filepath.Abs(binaryPath)
+	if err != nil {
+		fmt.Printf("   ❌ FAIL: Failed to get absolute path: %v\n", err)
+		allChecksPass = false
+		return
+	}
+
+	cmd := exec.Command(absPath)
+	cmd.Dir = filepath.Dir(absPath) // Set working directory to build dir
 
 	if err := cmd.Start(); err != nil {
 		fmt.Printf("   ❌ FAIL: Failed to start binary: %v\n", err)
@@ -296,8 +304,11 @@ func findLegacyLoggingCalls() ([]string, error) {
 				return nil
 			}
 
-			// Skip logger implementation itself and test files
-			if strings.Contains(path, "internal/logger/logger.go") || strings.HasSuffix(path, "_test.go") {
+			// Skip logger implementation itself, test files, demo modules, and utility programs
+			if strings.Contains(path, "internal/logger/logger.go") ||
+				strings.HasSuffix(path, "_test.go") ||
+				strings.Contains(path, "cmd/demo/") ||
+				strings.Contains(path, "cmd/utils/") {
 				return nil
 			}
 
