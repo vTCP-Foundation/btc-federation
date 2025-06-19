@@ -1,11 +1,12 @@
 package network
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/multiformats/go-multiaddr"
+
+	"btc-federation/internal/logger"
 )
 
 // networkNotifiee implements the libp2p network.Notifiee interface
@@ -14,84 +15,95 @@ type networkNotifiee struct {
 	manager *Manager
 }
 
-// Connected is called when a connection is established
-func (n *networkNotifiee) Connected(network network.Network, conn network.Conn) {
+// Connected implements network.Notifiee
+func (nn *networkNotifiee) Connected(n network.Network, conn network.Conn) {
+	// This is called when a new connection is established
 	peerID := conn.RemotePeer()
 	remoteAddr := conn.RemoteMultiaddr()
 	direction := conn.Stat().Direction
 
-	fmt.Printf("NetworkManager: Connection established with peer %s from %s (direction: %s)\n",
-		peerID, remoteAddr, direction)
+	logger.Info("NetworkManager: Connection established with peer",
+		"peer_id", peerID,
+		"address", remoteAddr,
+		"direction", direction)
 
-	// Add detailed timing and libp2p connection debugging
-	fmt.Printf("CONNECT DEBUG: Connection opened at %v, processing at %v (delay: %v)\n",
-		conn.Stat().Opened, time.Now(), time.Since(conn.Stat().Opened))
+	connectionTime := conn.Stat().Opened
+	now := time.Now()
+	delay := now.Sub(connectionTime)
+	logger.Debug("CONNECT DEBUG: Connection timing",
+		"opened_at", connectionTime,
+		"processing_at", now,
+		"delay", delay)
 
-	// Debug: Show all connections to this peer from libp2p's perspective
-	allConnsToPeer := n.manager.hostWrapper.Host().Network().ConnsToPeer(peerID)
-	fmt.Printf("LIBP2P DEBUG: Total connections to peer %s: %d\n", peerID, len(allConnsToPeer))
+	// Log all connections to this peer for debugging
+	allConnsToPeer := n.ConnsToPeer(peerID)
+	logger.Debug("LIBP2P DEBUG: Total connections to peer", "peer_id", peerID, "count", len(allConnsToPeer))
 	for i, c := range allConnsToPeer {
-		fmt.Printf("LIBP2P DEBUG: Connection %d: opened=%v, direction=%s\n",
-			i, c.Stat().Opened, c.Stat().Direction)
+		logger.Debug("LIBP2P DEBUG: Connection details",
+			"index", i,
+			"opened", c.Stat().Opened,
+			"direction", c.Stat().Direction)
 	}
 
-	// Check for and handle redundant connections
-	if n.manager.handleConnectionDeduplication(conn) {
-		// Connection was closed due to deduplication, don't proceed
-		return
+	// Handle the connection
+	nn.manager.emitConnectionEvent(EventConnected, peerID, remoteAddr, nil)
+
+	// Special handling for incoming connections - try to adopt them if we have a matching peer handler
+	if direction == network.DirInbound {
+		nn.manager.handleIncomingConnection(peerID, conn)
 	}
 
-	// Update connection state
-	n.manager.updateConnectionState(peerID, StateConnected, remoteAddr)
+	// Handle connection deduplication if we have multiple connections to the same peer
+	if len(allConnsToPeer) > 1 {
+		// Check if we should deduplicate
+		if nn.manager.handleConnectionDeduplication(conn) {
+			return // Connection was closed due to deduplication
+		}
+	}
 
-	// Immediately update any relevant peer handler state
-	n.manager.handleIncomingConnection(peerID, conn)
-
-	// Emit connection event to handlers
-	n.manager.emitConnectionEvent(EventConnected, peerID, remoteAddr, nil)
-
-	fmt.Printf("NetworkManager: Successfully established connection with peer %s\n", peerID.String())
+	logger.Info("NetworkManager: Successfully established connection with peer", "peer_id", peerID.String())
 }
 
-// Disconnected is called when a connection is closed
-func (n *networkNotifiee) Disconnected(network network.Network, conn network.Conn) {
+// Disconnected implements network.Notifiee
+func (nn *networkNotifiee) Disconnected(n network.Network, conn network.Conn) {
+	// This is called when a connection is closed
 	peerID := conn.RemotePeer()
-	addr := conn.RemoteMultiaddr()
+	remoteAddr := conn.RemoteMultiaddr()
 
-	fmt.Printf("NetworkManager: Connection closed with peer %s (was at %s)\n",
-		peerID.String(), addr.String())
+	logger.Info("NetworkManager: Connection closed with peer",
+		"peer_id", peerID,
+		"address", remoteAddr)
 
-	// Add debug info about the connection that was closed
-	fmt.Printf("DISCONNECT DEBUG: Connection details - Direction: %s, Opened: %v, Duration: %v\n",
-		conn.Stat().Direction, conn.Stat().Opened, time.Since(conn.Stat().Opened))
+	// Log connection details for debugging
+	connStat := conn.Stat()
+	logger.Debug("DISCONNECT DEBUG: Connection details",
+		"direction", connStat.Direction,
+		"opened", connStat.Opened,
+		"duration", time.Since(connStat.Opened))
 
-	// Check how many connections we still have to this peer
-	remainingConns := n.manager.hostWrapper.Host().Network().ConnsToPeer(peerID)
-	fmt.Printf("DISCONNECT DEBUG: Remaining connections to peer %s: %d\n",
-		peerID.String(), len(remainingConns))
+	// Check remaining connections
+	remainingConns := n.ConnsToPeer(peerID)
+	logger.Debug("DISCONNECT DEBUG: Remaining connections to peer",
+		"peer_id", peerID,
+		"count", len(remainingConns))
+
+	// Emit disconnect event
+	nn.manager.emitConnectionEvent(EventDisconnected, peerID, remoteAddr, nil)
 
 	// Update connection state
-	n.manager.updateConnectionState(peerID, StateDisconnecting, addr)
-
-	// Emit disconnection event to handlers
-	n.manager.emitConnectionEvent(EventDisconnected, peerID, addr, nil)
-
-	// Remove from connections map after a brief delay to allow handlers to process
-	go func() {
-		n.manager.connectionsMutex.Lock()
-		delete(n.manager.connections, peerID)
-		n.manager.connectionsMutex.Unlock()
-	}()
+	nn.manager.updateConnectionState(peerID, StateDisconnecting, remoteAddr)
 }
 
-// Listen is called when the network starts listening on an address
-func (n *networkNotifiee) Listen(network network.Network, addr multiaddr.Multiaddr) {
-	// TODO: Log that we're listening on this address
-	// fmt.Printf("Started listening on: %s\n", addr.String())
+// Listen implements network.Notifiee
+func (nn *networkNotifiee) Listen(n network.Network, addr multiaddr.Multiaddr) {
+	// This is called when we start listening on an address
+	// Optionally log this event
+	// logger.Info("Started listening on", "address", addr.String())
 }
 
-// ListenClose is called when the network stops listening on an address
-func (n *networkNotifiee) ListenClose(network network.Network, addr multiaddr.Multiaddr) {
-	// TODO: Log that we stopped listening on this address
-	// fmt.Printf("Stopped listening on: %s\n", addr.String())
+// ListenClose implements network.Notifiee
+func (nn *networkNotifiee) ListenClose(n network.Network, addr multiaddr.Multiaddr) {
+	// This is called when we stop listening on an address
+	// Optionally log this event
+	// logger.Info("Stopped listening on", "address", addr.String())
 }

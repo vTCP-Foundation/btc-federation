@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -160,6 +161,51 @@ func validateLoggingConfig(cfg *types.LoggingConfig) error {
 	}
 	if !validFormats[cfg.Format] {
 		return fmt.Errorf("logging.format must be one of: json, text")
+	}
+
+	// Validate file output configuration
+	if cfg.FileOutput && cfg.FileName == "" {
+		return fmt.Errorf("logging.file_name is required when file_output is true")
+	}
+
+	// Validate file max size format
+	if cfg.FileMaxSize != "" {
+		if err := validateFileMaxSize(cfg.FileMaxSize); err != nil {
+			return fmt.Errorf("logging.file_max_size format error: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// validateFileMaxSize validates the file max size format (e.g., "10MB")
+func validateFileMaxSize(size string) error {
+	if size == "" {
+		return nil
+	}
+
+	// Convert to uppercase for validation
+	upper := strings.ToUpper(size)
+
+	// Check if it ends with MB
+	if strings.HasSuffix(upper, "MB") {
+		sizeStr := strings.TrimSuffix(upper, "MB")
+		if sizeStr == "" {
+			return fmt.Errorf("size value missing before MB")
+		}
+
+		// Try to parse the number
+		_, err := strconv.Atoi(sizeStr)
+		if err != nil {
+			return fmt.Errorf("invalid size number: %s", sizeStr)
+		}
+		return nil
+	}
+
+	// Try to parse as plain number (assume MB)
+	_, err := strconv.Atoi(size)
+	if err != nil {
+		return fmt.Errorf("invalid size format, expected number or numberMB: %s", size)
 	}
 
 	return nil

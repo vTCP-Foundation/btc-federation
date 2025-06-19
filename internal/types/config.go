@@ -27,8 +27,13 @@ type PeersConfig struct {
 
 // LoggingConfig contains logging configuration
 type LoggingConfig struct {
-	Level  string `yaml:"level" validate:"required,oneof=debug info warn error"`
-	Format string `yaml:"format" validate:"required,oneof=json text"`
+	Level         string `yaml:"level" validate:"required,oneof=debug info warn error"`
+	Format        string `yaml:"format" validate:"required,oneof=json text"`
+	ConsoleOutput bool   `yaml:"console_output"`
+	ConsoleColor  bool   `yaml:"console_color"`
+	FileOutput    bool   `yaml:"file_output"`
+	FileName      string `yaml:"file_name"`
+	FileMaxSize   string `yaml:"file_max_size"`
 }
 
 // DefaultConfig returns a configuration with sensible defaults
@@ -47,8 +52,13 @@ func DefaultConfig() *Config {
 			ConnectionTimeout: 10 * time.Second,
 		},
 		Logging: LoggingConfig{
-			Level:  "info",
-			Format: "json",
+			Level:         "info",
+			Format:        "json",
+			ConsoleOutput: true,
+			ConsoleColor:  true,
+			FileOutput:    true,
+			FileName:      "btc-federation.log",
+			FileMaxSize:   "10MB",
 		},
 	}
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/multiformats/go-multiaddr"
 
+	"btc-federation/internal/logger"
 	"btc-federation/internal/storage"
 	"btc-federation/internal/types"
 )
@@ -109,12 +110,11 @@ func (m *Manager) Start(ctx context.Context) error {
 	m.isStarted = true
 
 	// Log successful start
-	// TODO: Use proper logging system
-	fmt.Printf("Network manager started successfully. Listening on: %v\n", m.hostWrapper.Host().Addrs())
+	logger.Info("Network manager started successfully", "listening_addresses", m.hostWrapper.Host().Addrs())
 
 	// Print peer ID for configuration
 	peerID := m.hostWrapper.Host().ID()
-	fmt.Printf("NODE_PEER_ID: %s\n", peerID)
+	logger.Info("NODE_PEER_ID", "peer_id", peerID)
 
 	// Load peers and perform bootstrap validation
 	if err := m.initializePeers(ctx); err != nil {
@@ -210,8 +210,7 @@ func (m *Manager) RegisterProtocolHandler(protocolID protocol.ID, handler Protoc
 	// Register with libp2p host
 	m.hostWrapper.Host().SetStreamHandler(protocolID, func(stream network.Stream) {
 		if err := handler.HandleStream(stream); err != nil {
-			// TODO: Use proper logging
-			fmt.Printf("Error handling stream for protocol %s: %v\n", protocolID, err)
+			logger.Error("Error handling stream for protocol", "protocol_id", protocolID, "error", err)
 			stream.Reset()
 		}
 	})
@@ -307,13 +306,11 @@ func (m *Manager) emitConnectionEvent(eventType ConnectionEventType, peerID peer
 			switch eventType {
 			case EventConnected:
 				if handlerErr := handler.OnPeerConnected(peerID, addr); handlerErr != nil {
-					// TODO: Use proper logging
-					fmt.Printf("Error in connection handler: %v\n", handlerErr)
+					logger.Error("Error in connection handler", "error", handlerErr)
 				}
 			case EventDisconnected, EventConnectionFailed:
 				if handlerErr := handler.OnPeerDisconnected(peerID, err); handlerErr != nil {
-					// TODO: Use proper logging
-					fmt.Printf("Error in disconnection handler: %v\n", handlerErr)
+					logger.Error("Error in disconnection handler", "error", handlerErr)
 				}
 			}
 		}
@@ -357,18 +354,18 @@ func (m *Manager) initializePeers(ctx context.Context) error {
 	}
 
 	if len(peers) == 0 {
-		fmt.Println("NetworkManager: No peers configured - running in standalone mode")
+		logger.Info("NetworkManager: No peers configured - running in standalone mode")
 		return nil
 	}
 
-	fmt.Printf("NetworkManager: Loaded %d peers from storage\n", len(peers))
+	logger.Info("NetworkManager: Loaded peers from storage", "peer_count", len(peers))
 
 	// Create peer handlers for each peer
 	for _, peer := range peers {
 		handler, err := NewPeerHandler(peer, m.hostWrapper.Host(), m.peersConfig.ConnectionTimeout)
 		if err != nil {
-			fmt.Printf("NetworkManager: Failed to create handler for peer %s: %v\n",
-				peer.PublicKey[:min(20, len(peer.PublicKey))], err)
+			logger.Error("NetworkManager: Failed to create handler for peer",
+				"peer_key", peer.PublicKey[:min(20, len(peer.PublicKey))], "error", err)
 			continue
 		}
 
@@ -395,7 +392,7 @@ func (m *Manager) waitForBootstrap(ctx context.Context) error {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
-	fmt.Printf("NetworkManager: Waiting for bootstrap connections (timeout: %v)...\n", bootstrapTimeout)
+	logger.Info("NetworkManager: Waiting for bootstrap connections", "timeout", bootstrapTimeout)
 
 	for {
 		select {
@@ -410,7 +407,7 @@ func (m *Manager) waitForBootstrap(ctx context.Context) error {
 
 			connectedCount := m.getConnectedPeerCount()
 			if connectedCount > 0 {
-				fmt.Printf("NetworkManager: Bootstrap successful - %d peers connected\n", connectedCount)
+				logger.Info("NetworkManager: Bootstrap successful", "connected_peers", connectedCount)
 				return nil
 			}
 
@@ -453,8 +450,10 @@ func (m *Manager) allPeersPermanentlyFailed() bool {
 // onPeerStateChange handles peer state changes
 func (m *Manager) onPeerStateChange(handler *PeerHandler, oldState, newState PeerState) {
 	peer := handler.GetPeer()
-	fmt.Printf("NetworkManager: Peer %s state changed: %s -> %s\n",
-		peer.PublicKey[:min(20, len(peer.PublicKey))], oldState, newState)
+	logger.Info("NetworkManager: Peer state changed",
+		"peer_key", peer.PublicKey[:min(20, len(peer.PublicKey))],
+		"old_state", oldState,
+		"new_state", newState)
 
 	// Update connection tracking based on state
 	if newState == PeerStateConnected {
@@ -479,14 +478,14 @@ func (m *Manager) handleIncomingConnection(peerID peer.ID, conn network.Conn) {
 	for _, handler := range m.peerHandlers {
 		if handler.matchesPeerID(peerID) {
 			// Found matching peer handler - immediately update it to connected state
-			fmt.Printf("NetworkManager: Incoming connection matched configured peer, updating state immediately\n")
+			logger.Info("NetworkManager: Incoming connection matched configured peer, updating state immediately")
 			handler.adoptIncomingConnection(conn)
 			return
 		}
 	}
 
 	// No configured peer handler found - this is fine, just log it
-	fmt.Printf("NetworkManager: Received connection from unconfigured peer %s\n", peerID.String())
+	logger.Info("NetworkManager: Received connection from unconfigured peer", "peer_id", peerID.String())
 }
 
 // GetPeerHandlers returns information about all peer handlers
@@ -518,22 +517,25 @@ func (m *Manager) handleConnectionDeduplication(newConn network.Conn) bool {
 	// Get all existing connections to this peer
 	existingConns := m.hostWrapper.Host().Network().ConnsToPeer(peerID)
 
-	fmt.Printf("DEDUP DEBUG: Checking connection to peer %s\n", peerID.String())
-	fmt.Printf("DEDUP DEBUG: Found %d existing connections to this peer\n", len(existingConns))
+	logger.Debug("DEDUP DEBUG: Checking connection to peer", "peer_id", peerID.String())
+	logger.Debug("DEDUP DEBUG: Found existing connections to this peer", "connection_count", len(existingConns))
 	for i, conn := range existingConns {
-		fmt.Printf("DEDUP DEBUG: Connection %d: opened=%v, direction=%s\n",
-			i, conn.Stat().Opened, conn.Stat().Direction)
+		logger.Debug("DEDUP DEBUG: Connection details",
+			"index", i,
+			"opened", conn.Stat().Opened,
+			"direction", conn.Stat().Direction)
 	}
 
 	// If we only have one connection (the new one), no deduplication needed
 	if len(existingConns) <= 1 {
-		fmt.Printf("DEDUP DEBUG: Only %d connection(s), no deduplication needed\n", len(existingConns))
+		logger.Debug("DEDUP DEBUG: Only few connections, no deduplication needed", "connection_count", len(existingConns))
 		return false
 	}
 
 	// We have multiple connections to the same peer - need to deduplicate
-	fmt.Printf("Connection deduplication: Found %d connections to peer %s\n",
-		len(existingConns), peerID.String())
+	logger.Info("Connection deduplication: Found multiple connections to peer",
+		"connection_count", len(existingConns),
+		"peer_id", peerID.String())
 
 	// Strategy: Keep the oldest connection, close newer ones
 	// This prevents the race condition where both sides close connections
@@ -548,14 +550,12 @@ func (m *Manager) handleConnectionDeduplication(newConn network.Conn) bool {
 	// If the new connection is the oldest (shouldn't happen but safety check)
 	if newConn == oldestConn {
 		// Close all other connections
-		fmt.Printf("Connection deduplication: Keeping new connection (oldest), closing %d newer connections\n",
-			len(existingConns)-1)
+		logger.Info("Connection deduplication: Keeping new connection (oldest), closing multiple connections")
 
 		for _, conn := range existingConns {
 			if conn != newConn {
 				go func(c network.Conn) {
-					fmt.Printf("Connection deduplication: Closing connection %s (opened: %v)\n",
-						c.RemotePeer().String(), c.Stat().Opened)
+					logger.Info("Connection deduplication: Closing connection", "peer_id", c.RemotePeer().String())
 					c.Close()
 				}(conn)
 			}
@@ -563,8 +563,9 @@ func (m *Manager) handleConnectionDeduplication(newConn network.Conn) bool {
 		return false // Don't close the new connection
 	} else {
 		// Close the new connection, keep the oldest existing one
-		fmt.Printf("Connection deduplication: Closing new connection (opened: %v), keeping oldest (opened: %v)\n",
-			newConn.Stat().Opened, oldestConn.Stat().Opened)
+		logger.Info("Connection deduplication: Closing new connection, keeping oldest",
+			"new_connection_opened", newConn.Stat().Opened,
+			"oldest_connection_opened", oldestConn.Stat().Opened)
 
 		go func() {
 			newConn.Close()

@@ -17,6 +17,7 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/transport/tcp"
 	"github.com/multiformats/go-multiaddr"
 
+	"btc-federation/internal/logger"
 	"btc-federation/internal/types"
 )
 
@@ -107,10 +108,10 @@ func NewHostWrapper(config *types.NetworkConfig, privateKey crypto.PrivKey) (*Ho
 
 	// Enable debug logging for connection issues
 	// This will help us see what's happening at the libp2p level
-	fmt.Printf("LIBP2P HOST: Creating host with connection and resource management\n")
-	fmt.Printf("LIBP2P HOST: Connection Manager - Low: 10, High: 50, Grace: 1m\n")
-	fmt.Printf("LIBP2P HOST: Resource Manager - Max connections per peer: 1\n")
-	fmt.Printf("LIBP2P HOST: Listen addresses: %v\n", config.Addresses)
+	logger.Info("LIBP2P HOST: Creating host with connection and resource management")
+	logger.Info("LIBP2P HOST: Connection Manager", "low_watermark", 10, "high_watermark", 50, "grace_period", "1m")
+	logger.Info("LIBP2P HOST: Resource Manager", "max_connections_per_peer", 1)
+	logger.Info("LIBP2P HOST: Listen addresses", "addresses", config.Addresses)
 
 	// Create libp2p host with connection management configuration
 	h, err := libp2p.New(opts...)
@@ -118,8 +119,8 @@ func NewHostWrapper(config *types.NetworkConfig, privateKey crypto.PrivKey) (*Ho
 		return nil, err
 	}
 
-	fmt.Printf("LIBP2P HOST: Created host with ID: %s\n", h.ID().String())
-	fmt.Printf("LIBP2P HOST: Host listening on: %v\n", h.Addrs())
+	logger.Info("LIBP2P HOST: Created host", "id", h.ID().String())
+	logger.Info("LIBP2P HOST: Host listening on", "addresses", h.Addrs())
 
 	return &HostWrapper{
 		host:   h,

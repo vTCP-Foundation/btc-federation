@@ -1,4 +1,5 @@
 bin/
+build/
 
 # Bitcoin Core
 .btc

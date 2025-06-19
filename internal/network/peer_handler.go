@@ -13,6 +13,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 
+	"btc-federation/internal/logger"
 	"btc-federation/internal/storage"
 )
 
@@ -202,16 +203,18 @@ func (h *PeerHandler) connectionLoop() {
 func (h *PeerHandler) attemptConnection() {
 	currentState := h.GetState()
 
-	fmt.Printf("PeerHandler: attemptConnection() called for peer %s (state: %s) at %v\n",
-		h.peer.PublicKey[:min(20, len(h.peer.PublicKey))], currentState, time.Now())
+	logger.Debug("PeerHandler: attemptConnection() called",
+		"peer_key", h.peer.PublicKey[:min(20, len(h.peer.PublicKey))],
+		"state", currentState,
+		"timestamp", time.Now())
 
 	if currentState == PeerStateConnecting {
-		fmt.Printf("PeerHandler: Already connecting, skipping\n")
+		logger.Debug("PeerHandler: Already connecting, skipping")
 		return // Already connecting
 	}
 
 	if currentState == PeerStatePermanentFailure {
-		fmt.Printf("PeerHandler: In permanent failure state, skipping\n")
+		logger.Debug("PeerHandler: In permanent failure state, skipping")
 		return // Don't retry permanent failures
 	}
 
@@ -222,14 +225,16 @@ func (h *PeerHandler) attemptConnection() {
 		nextRetryTime := h.nextRetry
 		h.stateMutex.RUnlock()
 
-		fmt.Printf("PeerHandler: In temporary failure state - shouldWait: %v, nextRetry: %v, now: %v\n",
-			shouldWait, nextRetryTime, time.Now())
+		logger.Debug("PeerHandler: In temporary failure state",
+			"should_wait", shouldWait,
+			"next_retry", nextRetryTime,
+			"now", time.Now())
 
 		if shouldWait {
-			fmt.Printf("PeerHandler: Not time to retry yet, skipping\n")
+			logger.Debug("PeerHandler: Not time to retry yet, skipping")
 			return // Not time to retry yet
 		}
-		fmt.Printf("PeerHandler: Time to retry! Proceeding with connection attempt\n")
+		logger.Debug("PeerHandler: Time to retry! Proceeding with connection attempt")
 	}
 
 	// Check if we already have a connection to this peer (if we can derive peer ID)
@@ -237,12 +242,14 @@ func (h *PeerHandler) attemptConnection() {
 		existingConns := h.host.Network().ConnsToPeer(peerID)
 		if len(existingConns) > 0 {
 			// We already have a connection to this peer, adopt it silently
-			fmt.Printf("PeerHandler: Found existing connection to peer %s, adopting instead of creating new one\n",
-				h.peer.PublicKey[:min(20, len(h.peer.PublicKey))])
-			fmt.Printf("PeerHandler: Existing connections: %d\n", len(existingConns))
+			logger.Debug("PeerHandler: Found existing connection, adopting instead of creating new one",
+				"peer_key", h.peer.PublicKey[:min(20, len(h.peer.PublicKey))])
+			logger.Debug("PeerHandler: Existing connections", "count", len(existingConns))
 			for i, conn := range existingConns {
-				fmt.Printf("PeerHandler: Connection %d: direction=%s, opened=%v\n",
-					i, conn.Stat().Direction, conn.Stat().Opened)
+				logger.Debug("PeerHandler: Connection details",
+					"index", i,
+					"direction", conn.Stat().Direction,
+					"opened", conn.Stat().Opened)
 			}
 
 			h.peerID = peerID
@@ -254,8 +261,8 @@ func (h *PeerHandler) attemptConnection() {
 			h.failureCount = 0
 			h.stateMutex.Unlock()
 
-			fmt.Printf("PeerHandler: Successfully adopted existing connection to peer %s\n",
-				h.peer.PublicKey[:min(20, len(h.peer.PublicKey))])
+			logger.Debug("PeerHandler: Successfully adopted existing connection",
+				"peer_key", h.peer.PublicKey[:min(20, len(h.peer.PublicKey))])
 			return
 		}
 	}
@@ -265,7 +272,8 @@ func (h *PeerHandler) attemptConnection() {
 	h.lastAttempt = time.Now()
 	h.stateMutex.Unlock()
 
-	fmt.Printf("PeerHandler: Attempting to connect to peer %s...\n", h.peer.PublicKey[:min(20, len(h.peer.PublicKey))])
+	logger.Debug("PeerHandler: Attempting to connect to peer",
+		"peer_key", h.peer.PublicKey[:min(20, len(h.peer.PublicKey))])
 
 	// Try each address until one succeeds
 	for i, addr := range h.addresses {
@@ -282,12 +290,14 @@ func (h *PeerHandler) attemptConnection() {
 			h.stateMutex.Unlock()
 
 			h.setState(PeerStateConnected)
-			fmt.Printf("PeerHandler: Successfully connected to peer at %s\n", addr)
+			logger.Info("PeerHandler: Successfully connected to peer", "address", addr)
 			return
 		}
 
-		fmt.Printf("PeerHandler: Failed to connect to peer at %s (attempt %d/%d)\n",
-			addr, i+1, len(h.addresses))
+		logger.Warn("PeerHandler: Failed to connect to peer",
+			"address", addr,
+			"attempt", i+1,
+			"total_attempts", len(h.addresses))
 	}
 
 	// All addresses failed
@@ -305,11 +315,11 @@ func (h *PeerHandler) connectToAddress(addr multiaddr.Multiaddr) bool {
 		// Address doesn't include peer ID, derive it from the public key
 		peerID, err := h.derivePeerIDFromPublicKey()
 		if err != nil {
-			fmt.Printf("PeerHandler: Failed to derive peer ID from public key: %v\n", err)
+			logger.Error("PeerHandler: Failed to derive peer ID from public key", "error", err)
 			return false
 		}
 
-		fmt.Printf("PeerHandler: Derived peer ID %s for address %s\n", peerID, addr)
+		logger.Debug("PeerHandler: Derived peer ID for address", "peer_id", peerID, "address", addr)
 
 		// Add address to peerstore
 		h.host.Peerstore().AddAddr(peerID, addr, time.Hour)
@@ -323,31 +333,37 @@ func (h *PeerHandler) connectToAddress(addr multiaddr.Multiaddr) bool {
 
 	// Check existing connections before attempting new connection
 	existingConnsBefore := h.host.Network().ConnsToPeer(addrInfo.ID)
-	fmt.Printf("PeerHandler: Before Connect() call - existing connections to %s: %d\n",
-		addrInfo.ID, len(existingConnsBefore))
+	logger.Debug("PeerHandler: Before Connect() call - existing connections",
+		"peer_id", addrInfo.ID,
+		"connection_count", len(existingConnsBefore))
 	for i, conn := range existingConnsBefore {
-		fmt.Printf("PeerHandler: Existing connection %d: direction=%s, opened=%v\n",
-			i, conn.Stat().Direction, conn.Stat().Opened)
+		logger.Debug("PeerHandler: Existing connection details",
+			"index", i,
+			"direction", conn.Stat().Direction,
+			"opened", conn.Stat().Opened)
 	}
 
-	fmt.Printf("PeerHandler: Calling host.Connect() to %s...\n", addrInfo.ID)
+	logger.Debug("PeerHandler: Calling host.Connect()", "peer_id", addrInfo.ID)
 
 	// Connect using peer info
 	err = h.host.Connect(ctx, *addrInfo)
 	if err != nil {
-		fmt.Printf("PeerHandler: Connect failed to %s: %v\n", addrInfo.ID, err)
+		logger.Error("PeerHandler: Connect failed", "peer_id", addrInfo.ID, "error", err)
 		return false
 	}
 
-	fmt.Printf("PeerHandler: host.Connect() succeeded to %s\n", addrInfo.ID)
+	logger.Debug("PeerHandler: host.Connect() succeeded", "peer_id", addrInfo.ID)
 
 	// Get the connection after connect
 	connAfter := h.host.Network().ConnsToPeer(addrInfo.ID)
-	fmt.Printf("PeerHandler: After Connect() call - connections to %s: %d\n",
-		addrInfo.ID, len(connAfter))
+	logger.Debug("PeerHandler: After Connect() call - connections",
+		"peer_id", addrInfo.ID,
+		"connection_count", len(connAfter))
 	for i, conn := range connAfter {
-		fmt.Printf("PeerHandler: Connection %d: direction=%s, opened=%v\n",
-			i, conn.Stat().Direction, conn.Stat().Opened)
+		logger.Debug("PeerHandler: Connection details",
+			"index", i,
+			"direction", conn.Stat().Direction,
+			"opened", conn.Stat().Opened)
 	}
 
 	if len(connAfter) == 0 {
@@ -390,7 +406,7 @@ func (h *PeerHandler) setConnection(conn network.Conn) {
 	// Only close old connection if it's different from the new one
 	// This prevents closing the same connection we're trying to set
 	if h.connection != nil && h.connection != conn {
-		fmt.Printf("PeerHandler: Closing old connection to set new one\n")
+		logger.Debug("PeerHandler: Closing old connection to set new one")
 		h.connection.Close()
 	}
 
@@ -416,8 +432,9 @@ func (h *PeerHandler) handleConnectionFailure() {
 	if h.failureCount >= h.maxFailures {
 		h.stateMutex.Unlock()
 		h.setState(PeerStatePermanentFailure)
-		fmt.Printf("PeerHandler: Peer %s marked as permanently failed after %d attempts\n",
-			h.peer.PublicKey[:min(20, len(h.peer.PublicKey))], h.failureCount)
+		logger.Warn("PeerHandler: Peer marked as permanently failed",
+			"peer_key", h.peer.PublicKey[:min(20, len(h.peer.PublicKey))],
+			"failure_count", h.failureCount)
 		return
 	}
 
@@ -428,13 +445,18 @@ func (h *PeerHandler) handleConnectionFailure() {
 	}
 
 	h.nextRetry = time.Now().Add(retryDelay)
-	fmt.Printf("PeerHandler: RETRY TIMING - Current time: %v, retry scheduled for: %v (in %v)\n",
-		time.Now(), h.nextRetry, retryDelay)
+	logger.Debug("PeerHandler: RETRY TIMING",
+		"current_time", time.Now(),
+		"retry_scheduled_for", h.nextRetry,
+		"retry_delay", retryDelay)
 	h.stateMutex.Unlock()
 
 	h.setState(PeerStateTemporaryFailure)
-	fmt.Printf("PeerHandler: Peer %s failed (attempt %d/%d), retrying in %v\n",
-		h.peer.PublicKey[:min(20, len(h.peer.PublicKey))], h.failureCount, h.maxFailures, retryDelay)
+	logger.Warn("PeerHandler: Peer failed, will retry",
+		"peer_key", h.peer.PublicKey[:min(20, len(h.peer.PublicKey))],
+		"attempt", h.failureCount,
+		"max_failures", h.maxFailures,
+		"retry_in", retryDelay)
 }
 
 // matchesPeerID checks if this handler is managing the given peer ID
@@ -456,8 +478,9 @@ func (h *PeerHandler) useExistingConnection(conn network.Conn) {
 		return // Already have a connection
 	}
 
-	fmt.Printf("PeerHandler: Using existing connection to peer %s (was in state: %s)\n",
-		h.peer.PublicKey[:min(20, len(h.peer.PublicKey))], currentState)
+	logger.Debug("PeerHandler: Using existing connection to peer",
+		"peer_key", h.peer.PublicKey[:min(20, len(h.peer.PublicKey))],
+		"was_in_state", currentState)
 
 	// Set the connection and update state
 	h.setConnection(conn)
@@ -474,8 +497,9 @@ func (h *PeerHandler) useExistingConnection(conn network.Conn) {
 func (h *PeerHandler) adoptIncomingConnection(conn network.Conn) {
 	currentState := h.GetState()
 
-	fmt.Printf("PeerHandler: Adopting incoming connection to peer %s (current state: %s)\n",
-		h.peer.PublicKey[:min(20, len(h.peer.PublicKey))], currentState)
+	logger.Debug("PeerHandler: Adopting incoming connection to peer",
+		"peer_key", h.peer.PublicKey[:min(20, len(h.peer.PublicKey))],
+		"current_state", currentState)
 
 	// Check if we already have this connection
 	h.connMutex.RLock()
@@ -483,7 +507,7 @@ func (h *PeerHandler) adoptIncomingConnection(conn network.Conn) {
 	h.connMutex.RUnlock()
 
 	if existingConn == conn {
-		fmt.Printf("PeerHandler: Already have this connection, skipping adoption\n")
+		logger.Debug("PeerHandler: Already have this connection, skipping adoption")
 		return
 	}
 
@@ -497,15 +521,18 @@ func (h *PeerHandler) adoptIncomingConnection(conn network.Conn) {
 	h.failureCount = 0
 	h.stateMutex.Unlock()
 
-	fmt.Printf("PeerHandler: Successfully adopted incoming connection to peer %s (was in state: %s)\n",
-		h.peer.PublicKey[:min(20, len(h.peer.PublicKey))], currentState)
+	logger.Debug("PeerHandler: Successfully adopted incoming connection",
+		"peer_key", h.peer.PublicKey[:min(20, len(h.peer.PublicKey))],
+		"was_in_state", currentState)
 }
 
 // handlePeriodicCheck performs periodic health checks and maintenance
 func (h *PeerHandler) handlePeriodicCheck() {
 	state := h.GetState()
-	fmt.Printf("PeerHandler: Periodic check for peer %s (state: %s) at %v\n",
-		h.peer.PublicKey[:min(20, len(h.peer.PublicKey))], state, time.Now())
+	logger.Debug("PeerHandler: Periodic check",
+		"peer_key", h.peer.PublicKey[:min(20, len(h.peer.PublicKey))],
+		"state", state,
+		"timestamp", time.Now())
 
 	switch state {
 	case PeerStateTemporaryFailure:
@@ -515,32 +542,35 @@ func (h *PeerHandler) handlePeriodicCheck() {
 		nextRetryTime := h.nextRetry
 		h.stateMutex.RUnlock()
 
-		fmt.Printf("PeerHandler: In temporary failure state - shouldRetry: %v, nextRetry: %v, now: %v\n",
-			shouldRetry, nextRetryTime, time.Now())
+		logger.Debug("PeerHandler: In temporary failure state",
+			"should_retry", shouldRetry,
+			"next_retry", nextRetryTime,
+			"now", time.Now())
 
 		if shouldRetry {
-			fmt.Printf("PeerHandler: *** PERIODIC RETRY TRIGGERED *** for peer %s\n",
-				h.peer.PublicKey[:min(20, len(h.peer.PublicKey))])
+			logger.Info("PeerHandler: *** PERIODIC RETRY TRIGGERED ***",
+				"peer_key", h.peer.PublicKey[:min(20, len(h.peer.PublicKey))])
 			h.attemptConnection()
 		} else {
-			fmt.Printf("PeerHandler: Not time for periodic retry yet\n")
+			logger.Debug("PeerHandler: Not time for periodic retry yet")
 		}
 
 	case PeerStateConnected:
 		// Check if connection is still alive
 		conn := h.GetConnection()
 		if conn == nil {
-			fmt.Printf("PeerHandler: Connection to peer %s lost, attempting reconnection\n",
-				h.peer.PublicKey[:min(20, len(h.peer.PublicKey))])
+			logger.Warn("PeerHandler: Connection to peer lost, attempting reconnection",
+				"peer_key", h.peer.PublicKey[:min(20, len(h.peer.PublicKey))])
 			h.setState(PeerStateIdle)
 			h.attemptConnection()
 		} else {
-			fmt.Printf("PeerHandler: Connection to peer %s is alive\n",
-				h.peer.PublicKey[:min(20, len(h.peer.PublicKey))])
+			logger.Debug("PeerHandler: Connection to peer is alive",
+				"peer_key", h.peer.PublicKey[:min(20, len(h.peer.PublicKey))])
 		}
 
 	default:
-		fmt.Printf("PeerHandler: No action needed for peer %s in state %s\n",
-			h.peer.PublicKey[:min(20, len(h.peer.PublicKey))], state)
+		logger.Debug("PeerHandler: No action needed for peer in state",
+			"peer_key", h.peer.PublicKey[:min(20, len(h.peer.PublicKey))],
+			"state", state)
 	}
 }

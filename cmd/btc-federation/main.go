@@ -2,14 +2,13 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"btc-federation/internal/config"
 	"btc-federation/internal/keys"
+	"btc-federation/internal/logger"
 	"btc-federation/internal/network"
 )
 
@@ -23,30 +22,45 @@ func main() {
 	// Load configuration
 	cfg, err := configManager.LoadConfig("conf.yaml")
 	if err != nil {
-		log.Fatalf("Failed to load configuration: %v", err)
+		logger.Fatal("Failed to load configuration", "error", err)
 	}
 
-	fmt.Printf("BTC Federation Node starting with config: %+v\n", cfg)
+	// Initialize logger with configuration
+	loggerConfig := logger.Config{
+		ConsoleOutput: cfg.Logging.ConsoleOutput,
+		ConsoleColor:  cfg.Logging.ConsoleColor,
+		FileOutput:    cfg.Logging.FileOutput,
+		FileName:      cfg.Logging.FileName,
+		FileMaxSize:   cfg.Logging.FileMaxSize,
+		Level:         cfg.Logging.Level,
+	}
+
+	if err := logger.Init(loggerConfig); err != nil {
+		// Use standard logging as fallback since logger init failed
+		panic("Failed to initialize logger: " + err.Error())
+	}
+
+	logger.Info("BTC Federation Node starting with config", "config", cfg)
 
 	// Initialize network manager
 	networkManager, err := network.NewManager(cfg)
 	if err != nil {
-		log.Fatalf("Failed to create network manager: %v", err)
+		logger.Fatal("Failed to create network manager", "error", err)
 	}
 
 	// Start network manager
 	ctx := context.Background()
 	if err := networkManager.Start(ctx); err != nil {
-		log.Fatalf("Failed to start network manager: %v", err)
+		logger.Fatal("Failed to start network manager", "error", err)
 	}
 
-	fmt.Println("Node started successfully")
-	fmt.Printf("Peer ID: %s\n", networkManager.GetHost().ID())
-	fmt.Printf("Listening addresses: %v\n", networkManager.GetHost().Addrs())
-	
+	logger.Info("Node started successfully")
+	logger.Info("Peer ID", "peer_id", networkManager.GetHost().ID())
+	logger.Info("Listening addresses", "addresses", networkManager.GetHost().Addrs())
+
 	// Print public key for peer configuration
 	if pubKey := networkManager.GetHost().ID(); pubKey != "" {
-		fmt.Printf("For peers.yaml, use peer ID: %s\n", pubKey)
+		logger.Info("For peers.yaml, use peer ID", "peer_id", pubKey)
 	}
 
 	// Set up graceful shutdown
@@ -55,12 +69,12 @@ func main() {
 
 	// Wait for shutdown signal
 	<-sigChan
-	fmt.Println("\nShutting down...")
+	logger.Info("Shutting down...")
 
 	// Stop network manager
 	if err := networkManager.Stop(); err != nil {
-		log.Printf("Error stopping network manager: %v", err)
+		logger.Error("Error stopping network manager", "error", err)
 	}
 
-	fmt.Println("Shutdown complete")
+	logger.Info("Shutdown complete")
 }
