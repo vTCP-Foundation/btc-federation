@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -22,7 +23,7 @@ func main() {
 	// Load configuration
 	cfg, err := configManager.LoadConfig("conf.yaml")
 	if err != nil {
-		logger.Fatal("Failed to load configuration", "error", err)
+		log.Fatalf("Failed to load configuration: %v", err)
 	}
 
 	// Initialize logger with configuration
