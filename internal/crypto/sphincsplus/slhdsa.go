@@ -1,3 +1,12 @@
+//go:build cgo && openssl && amd64
+// +build cgo,openssl,amd64
+
+// Package sphincsplus provides SLH-DSA-SHA2-256s implementation via OpenSSL.
+//
+// Thread Safety: This package is NOT thread-safe. The global OpenSSL provider
+// state and key instances require external synchronization for concurrent use.
+// It is safe to use different key instances concurrently, but the same key
+// instance must not be used from multiple goroutines without synchronization.
 package sphincsplus
 
 /*
@@ -11,6 +20,10 @@ package sphincsplus
 #include <openssl/params.h>
 #include <stdlib.h>
 #include <string.h>
+
+// Additional C stdlib functions we need
+void* malloc(size_t size);
+void* memcpy(void *dest, const void *src, size_t n);
 
 static OSSL_PROVIDER *default_provider = NULL;
 
@@ -185,26 +198,65 @@ import (
 	"errors"
 	"io"
 	"runtime"
+	"sync"
 	"unsafe"
 )
 
 // SLHDSA256sPrivateKey satisfies crypto.Signer for SLH-DSA-SHA2-256s.
+// This implementation is NOT thread-safe. Callers must provide external synchronization
+// for concurrent access to the same key instance.
+//
+// Implements crypto.Signer and io.Closer for deterministic cleanup.
 type SLHDSA256sPrivateKey struct {
-	pkey      unsafe.Pointer // *C.EVP_PKEY (owned)
-	publicKey []byte         // raw bytes
+	mu        sync.RWMutex
+	pkey      *C.EVP_PKEY // owned C resource
+	publicKey []byte      // raw bytes
+	closed    bool        // tracks if key has been closed
 }
 
 type SLHDSA256sPublicKey struct {
 	key []byte
 }
 
+var (
+	providerInitOnce sync.Once
+	providerCleanup  func()
+	initErr          error
+)
+
+const (
+	PublicKeySize    = 64    // bytes for SLH-DSA-SHA2-256s public key (spec)
+	MaxSignatureSize = 49856 // exact specification size for SLH-DSA-SHA2-256s signature
+)
+
 func init() {
-	// Best effort – ignore failure; availability is checked explicitly later.
-	C.ensure_default_provider()
+	providerInitOnce.Do(func() {
+		if C.ensure_default_provider() == 0 {
+			initErr = errors.New("openssl default provider could not be loaded")
+			return
+		}
+		// Provider loaded successfully, set up cleanup
+		providerCleanup = func() {
+			C.unload_default_provider()
+		}
+	})
+}
+
+// Shutdown cleans up global OpenSSL provider resources.
+// This is optional and typically called during application shutdown.
+// After calling Shutdown, new key operations may fail.
+func Shutdown() {
+	if providerCleanup != nil {
+		providerCleanup()
+		providerCleanup = nil
+	}
 }
 
 // CheckSLHDSAAvailability returns an error if the algorithm is unavailable.
 func CheckSLHDSAAvailability() error {
+	if initErr != nil {
+		return initErr
+	}
 	if C.test_slh_dsa_available() == 0 {
 		version := C.GoString(C.get_openssl_version())
 		return errors.New("SLH-DSA-SHA2-256s not available (OpenSSL " + version + ")")
@@ -213,6 +265,7 @@ func CheckSLHDSAAvailability() error {
 }
 
 // GenerateKey creates a new deterministic SLH-DSA keypair.
+// The returned key is NOT thread-safe for concurrent operations.
 func GenerateKey() (*SLHDSA256sPrivateKey, error) {
 	if err := CheckSLHDSAAvailability(); err != nil {
 		return nil, err
@@ -229,12 +282,22 @@ func GenerateKey() (*SLHDSA256sPrivateKey, error) {
 		}
 		return nil, errors.New("key generation failed")
 	}
+	// Validate public key length
+	if pubLen != C.size_t(PublicKeySize) || pubLen == 0 {
+		if p != nil {
+			C.free_evp_pkey(p)
+		}
+		if pub != nil {
+			C.secure_free(unsafe.Pointer(pub), pubLen)
+		}
+		return nil, errors.New("unexpected public key length")
+	}
 
 	pubBytes := C.GoBytes(unsafe.Pointer(pub), C.int(pubLen))
 	C.secure_free(unsafe.Pointer(pub), pubLen)
 
 	pk := &SLHDSA256sPrivateKey{
-		pkey:      unsafe.Pointer(p),
+		pkey:      p,
 		publicKey: pubBytes,
 	}
 	runtime.SetFinalizer(pk, (*SLHDSA256sPrivateKey).finalize)
@@ -242,30 +305,79 @@ func GenerateKey() (*SLHDSA256sPrivateKey, error) {
 }
 
 func (pk *SLHDSA256sPrivateKey) finalize() {
+	// Finalizer calls Close but doesn't return errors
+	_ = pk.Close()
+}
+
+// Close securely destroys the private key material and frees resources.
+// After calling Close, the key cannot be used for signing operations.
+// It is safe to call Close multiple times.
+func (pk *SLHDSA256sPrivateKey) Close() error {
+	pk.mu.Lock()
+	defer pk.mu.Unlock()
+
+	if pk.closed {
+		return nil // already closed
+	}
+
 	if pk.pkey != nil {
-		C.free_evp_pkey((*C.EVP_PKEY)(pk.pkey))
+		C.free_evp_pkey(pk.pkey)
 		pk.pkey = nil
 	}
+
+	// Clear public key copy as well for consistency
+	if pk.publicKey != nil {
+		for i := range pk.publicKey {
+			pk.publicKey[i] = 0
+		}
+		pk.publicKey = nil
+	}
+
+	pk.closed = true
+	runtime.SetFinalizer(pk, nil) // Remove finalizer since we're cleaned up
+	return nil
 }
 
 // Public returns the corresponding public key.
 func (pk *SLHDSA256sPrivateKey) Public() crypto.PublicKey {
-	return &SLHDSA256sPublicKey{key: pk.publicKey}
+	pk.mu.RLock()
+	defer pk.mu.RUnlock()
+
+	if pk.closed {
+		// Return a public key with empty bytes - this is safe since public keys are not secret
+		return &SLHDSA256sPublicKey{key: nil}
+	}
+
+	// Make a defensive copy
+	pubCopy := make([]byte, len(pk.publicKey))
+	copy(pubCopy, pk.publicKey)
+	return &SLHDSA256sPublicKey{key: pubCopy}
 }
 
 // Sign deterministically signs the provided message (digest is the entire message).
 func (pk *SLHDSA256sPrivateKey) Sign(_ io.Reader, digest []byte, _ crypto.SignerOpts) ([]byte, error) {
-	if pk.pkey == nil {
-		return nil, errors.New("private key has been cleared")
+	pk.mu.RLock()
+	defer pk.mu.RUnlock()
+
+	if pk.closed || pk.pkey == nil {
+		return nil, errors.New("private key has been closed or cleared")
 	}
 
-	msgPtr := (*C.uchar)(C.CBytes(digest))
+	// Securely allocate memory for digest
+	if len(digest) == 0 {
+		return nil, errors.New("empty digest")
+	}
+	msgPtr := (*C.uchar)(C.malloc(C.size_t(len(digest))))
+	if msgPtr == nil {
+		return nil, errors.New("memory allocation failed")
+	}
+	C.memcpy(unsafe.Pointer(msgPtr), unsafe.Pointer(&digest[0]), C.size_t(len(digest)))
 	defer C.secure_free(unsafe.Pointer(msgPtr), C.size_t(len(digest)))
 
 	var sig *C.uchar
 	var sigLen C.size_t
 
-	ok := C.evp_slh_dsa_sign_with_pkey((*C.EVP_PKEY)(pk.pkey), msgPtr, C.size_t(len(digest)), &sig, &sigLen)
+	ok := C.evp_slh_dsa_sign_with_pkey(pk.pkey, msgPtr, C.size_t(len(digest)), &sig, &sigLen)
 	if ok == 0 {
 		errStr := C.get_openssl_error()
 		if errStr != nil {
@@ -288,14 +400,37 @@ func (pub *SLHDSA256sPublicKey) Bytes() []byte { return pub.key }
 
 // Verify checks a signature against a message.
 func (pub *SLHDSA256sPublicKey) Verify(message, signature []byte) error {
-	msgPtr := (*C.uchar)(C.CBytes(message))
+	if len(message) == 0 {
+		return errors.New("empty message")
+	}
+	if len(signature) == 0 {
+		return errors.New("empty signature")
+	}
+	if len(pub.key) != PublicKeySize {
+		return errors.New("invalid public key length")
+	}
+	if len(signature) > MaxSignatureSize {
+		return errors.New("signature too large")
+	}
+	// Allocate and securely handle message
+	msgPtr := (*C.uchar)(C.malloc(C.size_t(len(message))))
+	if msgPtr == nil {
+		return errors.New("memory allocation failed")
+	}
+	C.memcpy(unsafe.Pointer(msgPtr), unsafe.Pointer(&message[0]), C.size_t(len(message)))
 	defer C.secure_free(unsafe.Pointer(msgPtr), C.size_t(len(message)))
 
-	sigPtr := (*C.uchar)(C.CBytes(signature))
+	// Allocate and securely handle signature
+	sigPtr := (*C.uchar)(C.malloc(C.size_t(len(signature))))
+	if sigPtr == nil {
+		return errors.New("memory allocation failed")
+	}
+	C.memcpy(unsafe.Pointer(sigPtr), unsafe.Pointer(&signature[0]), C.size_t(len(signature)))
 	defer C.secure_free(unsafe.Pointer(sigPtr), C.size_t(len(signature)))
 
+	// Public keys don't need secure handling
 	pubPtr := (*C.uchar)(C.CBytes(pub.key))
-	defer C.free(unsafe.Pointer(pubPtr)) // public keys are not sensitive
+	defer C.free(unsafe.Pointer(pubPtr))
 
 	ok := C.evp_slh_dsa_verify(pubPtr, C.size_t(len(pub.key)), msgPtr, C.size_t(len(message)), sigPtr, C.size_t(len(signature)))
 	if ok == 0 {

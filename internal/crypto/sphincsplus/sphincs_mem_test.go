@@ -1,3 +1,6 @@
+//go:build cgo && openssl && amd64
+// +build cgo,openssl,amd64
+
 package sphincsplus
 
 import (
@@ -24,6 +27,7 @@ func TestSLHDSAMemoryLeak(t *testing.T) {
 	if err != nil {
 		t.Fatalf("warm-up keygen: %v", err)
 	}
+	defer pk.Close()
 	sig, err := pk.Sign(nil, warmMsg, SLHDSA256sSignerOpts{})
 	if err != nil {
 		t.Fatalf("warm-up sign: %v", err)
@@ -55,6 +59,7 @@ func TestSLHDSAMemoryLeak(t *testing.T) {
 		if err := pub.Verify(msg, sig); err != nil {
 			t.Fatalf("verify: %v", err)
 		}
+		priv.Close()
 	}
 
 	runtime.GC()
