@@ -226,7 +226,7 @@ var (
 
 const (
 	PublicKeySize    = 64    // bytes for SLH-DSA-SHA2-256s public key (spec)
-	MaxSignatureSize = 49856 // exact specification size for SLH-DSA-SHA2-256s signature
+	MaxSignatureSize = 29792 // exact specification size for SLH-DSA-SHA2-256s signature
 )
 
 func init() {
