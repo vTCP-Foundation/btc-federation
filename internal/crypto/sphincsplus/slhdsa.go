@@ -1,6 +1,3 @@
-//go:build cgo && openssl && amd64
-// +build cgo,openssl,amd64
-
 // Package sphincsplus provides SLH-DSA-SHA2-256s implementation via OpenSSL.
 //
 // Thread Safety: This package is NOT thread-safe. The global OpenSSL provider

@@ -1,6 +1,3 @@
-//go:build cgo && openssl && amd64
-// +build cgo,openssl,amd64
-
 package sphincsplus
 
 import (
