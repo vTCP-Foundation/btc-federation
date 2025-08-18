@@ -12,6 +12,9 @@ package sphincsplus
 #include <stdlib.h>
 #include <string.h>
 
+// Forward declaration so that cgo sees the symbol before it is used from Go.
+int ensure_secure_heap();
+
 static OSSL_PROVIDER *default_provider = NULL;
 
 // ensure_default_provider loads the "default" provider exactly once and returns
@@ -28,6 +31,20 @@ void unload_default_provider() {
         OSSL_PROVIDER_unload(default_provider);
         default_provider = NULL;
     }
+}
+
+// Ensure OpenSSL secure heap is initialized once.
+int ensure_secure_heap() {
+    static int secure_heap_initialized = 0;
+    if (!secure_heap_initialized) {
+        size_t secure_heap_size = (size_t)1 << 20; // 1 MiB secure heap
+        size_t min_alloc = 16;                      // minimum allocation size
+        if (!CRYPTO_secure_malloc_init(secure_heap_size, (int)min_alloc)) {
+            return 0; // initialization failed
+        }
+        secure_heap_initialized = 1;
+    }
+    return 1;
 }
 
 // Helper to obtain the most recent OpenSSL error string or NULL if none.
@@ -199,8 +216,13 @@ type SLHDSA256sPublicKey struct {
 }
 
 func init() {
-	// Best effort – ignore failure; availability is checked explicitly later.
-	C.ensure_default_provider()
+	// Fail fast if secure heap or provider initialization fails
+	if C.ensure_secure_heap() == 0 {
+		panic("failed to initialize OpenSSL secure heap")
+	}
+	if C.ensure_default_provider() == 0 {
+		panic("failed to load OpenSSL default provider")
+	}
 }
 
 // CheckSLHDSAAvailability returns an error if the algorithm is unavailable.
