@@ -76,6 +76,9 @@ func main() {
 	fmt.Println("\n5. Basic Consensus Data Flow")
 	demoConsensusFlow(config)
 	
+	// Demo 6: HotStuff State Machine
+	demoStateMachine()
+	
 	fmt.Println("\n=== Demo completed successfully! ===")
 }
 
