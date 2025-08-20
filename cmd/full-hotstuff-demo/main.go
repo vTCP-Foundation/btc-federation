@@ -235,6 +235,18 @@ func (cc *ConsensusController) messageProcessor(nodeID types.NodeID, coordinator
 						fmt.Printf("   [Node %d] ❌ Failed to process CommitQC: %v\n", nodeID, err)
 					}
 				}
+			case *messages.TimeoutMsg:
+				fmt.Printf("   [Node %d] 📨 Received timeout from Node %d for view %d\n", 
+					nodeID, m.SenderID, m.ViewNumber)
+				if err := coordinator.ProcessTimeoutMessage(m); err != nil {
+					fmt.Printf("   [Node %d] ❌ Failed to process timeout: %v\n", nodeID, err)
+				}
+			case *messages.NewViewMsg:
+				fmt.Printf("   [Node %d] 📨 Received NewView from Node %d for view %d\n", 
+					nodeID, m.Leader, m.ViewNumber)
+				if err := coordinator.ProcessNewViewMessage(m); err != nil {
+					fmt.Printf("   [Node %d] ❌ Failed to process NewView: %v\n", nodeID, err)
+				}
 			default:
 				fmt.Printf("   [Node %d] ⚠️  Unknown message type: %T\n", nodeID, m)
 			}

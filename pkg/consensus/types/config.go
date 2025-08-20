@@ -2,6 +2,7 @@ package types
 
 import (
 	"fmt"
+	"time"
 )
 
 // PublicKey represents a public key as a byte array.
@@ -9,11 +10,16 @@ import (
 type PublicKey []byte
 
 // ConsensusConfig defines the static configuration for the consensus protocol.
-// It contains the mapping of NodeIDs to their public keys. All other parameters are computed automatically.
+// It contains the mapping of NodeIDs to their public keys and timeout settings.
 type ConsensusConfig struct {
 	// PublicKeys maps each NodeID to its corresponding public key.
 	// The map keys define the set of consensus participants (NodeIDs must be sequential starting from 0).
 	PublicKeys map[NodeID]PublicKey
+	
+	// Timeout configuration for view changes
+	BaseTimeout      time.Duration // Base timeout for view changes
+	TimeoutMultiplier float64      // Multiplier for exponential backoff (default 2.0)
+	MaxTimeout       time.Duration // Maximum timeout duration
 }
 
 // NewConsensusConfig creates a new consensus configuration with the given public keys.
@@ -37,7 +43,10 @@ func NewConsensusConfig(publicKeys []PublicKey) (*ConsensusConfig, error) {
 	}
 
 	return &ConsensusConfig{
-		PublicKeys: keyMap,
+		PublicKeys:        keyMap,
+		BaseTimeout:       5 * time.Second,  // Default 5 second base timeout
+		TimeoutMultiplier: 2.0,              // Exponential backoff: timeout = baseTimeout * multiplier^view
+		MaxTimeout:        60 * time.Second, // Maximum 60 second timeout
 	}, nil
 }
 
@@ -207,8 +216,57 @@ func (c *ConsensusConfig) CanTolerateFailures(failures int) bool {
 	return failures <= c.FaultyNodes()
 }
 
+// GetTimeoutForView returns the timeout duration for a given view using exponential backoff.
+// Formula: timeout = min(baseTimeout * multiplier^view, maxTimeout)
+func (c *ConsensusConfig) GetTimeoutForView(view ViewNumber) time.Duration {
+	if view < 0 {
+		return c.BaseTimeout
+	}
+	
+	// Calculate exponential backoff: baseTimeout * multiplier^view
+	multiplier := c.TimeoutMultiplier
+	if multiplier <= 1.0 {
+		multiplier = 2.0 // Default fallback
+	}
+	
+	// Use floating point calculation to avoid overflow
+	timeout := float64(c.BaseTimeout) * powFloat(multiplier, float64(view))
+	
+	// Cap at maximum timeout
+	if time.Duration(timeout) > c.MaxTimeout {
+		return c.MaxTimeout
+	}
+	
+	return time.Duration(timeout)
+}
+
+// powFloat computes base^exp for floating point values (simple implementation)
+func powFloat(base, exp float64) float64 {
+	if exp == 0 {
+		return 1
+	}
+	if exp == 1 {
+		return base
+	}
+	
+	result := 1.0
+	for i := 0; i < int(exp); i++ {
+		result *= base
+		// Prevent excessive growth
+		if result > 1e12 {
+			return 1e12
+		}
+	}
+	return result
+}
+
+// IsTimeoutEnabled returns true if timeout handling is enabled (BaseTimeout > 0)
+func (c *ConsensusConfig) IsTimeoutEnabled() bool {
+	return c.BaseTimeout > 0
+}
+
 // String returns a string representation of the consensus configuration.
 func (c *ConsensusConfig) String() string {
-	return fmt.Sprintf("ConsensusConfig{Nodes: %d, Faulty: %d, Quorum: %d}",
-		c.TotalNodes(), c.FaultyNodes(), c.QuorumThreshold())
+	return fmt.Sprintf("ConsensusConfig{Nodes: %d, Faulty: %d, Quorum: %d, BaseTimeout: %v}",
+		c.TotalNodes(), c.FaultyNodes(), c.QuorumThreshold(), c.BaseTimeout)
 }

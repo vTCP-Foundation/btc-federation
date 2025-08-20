@@ -17,6 +17,9 @@ type SafetyRules struct {
 	
 	// lastVotedView tracks the last view in which this node voted to prevent double voting
 	lastVotedView types.ViewNumber
+	
+	// hasVoted tracks whether we have voted before (to handle initial view 0)
+	hasVoted bool
 }
 
 // NewSafetyRules creates a new SafetyRules instance with empty state.
@@ -25,6 +28,7 @@ func NewSafetyRules() *SafetyRules {
 		lockedQC:      nil,
 		prepareQC:     nil,
 		lastVotedView: 0,
+		hasVoted:      false,
 	}
 }
 
@@ -36,7 +40,7 @@ func (sr *SafetyRules) CanVote(block *types.Block, currentLockedQC *types.Quorum
 	}
 	
 	// Rule 1: Don't vote twice in the same view (prevent equivocation)
-	if block.View <= sr.lastVotedView {
+	if sr.hasVoted && block.View <= sr.lastVotedView {
 		return false, nil
 	}
 	
@@ -127,6 +131,7 @@ func (sr *SafetyRules) ValidateProposal(block *types.Block) error {
 
 // RecordVote records that we voted in a particular view to prevent double voting.
 func (sr *SafetyRules) RecordVote(view types.ViewNumber) {
+	sr.hasVoted = true
 	if view > sr.lastVotedView {
 		sr.lastVotedView = view
 	}
@@ -165,6 +170,7 @@ func (sr *SafetyRules) Reset() {
 	sr.lockedQC = nil
 	sr.prepareQC = nil
 	sr.lastVotedView = 0
+	sr.hasVoted = false
 }
 
 // ValidateQCTransition validates that transitioning from one QC to another is safe.

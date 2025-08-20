@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"btc-federation/pkg/consensus/crypto"
 	"btc-federation/pkg/consensus/engine"
@@ -30,6 +31,13 @@ type HotStuffCoordinator struct {
 	// Current state
 	currentView  types.ViewNumber
 	currentPhase types.ConsensusPhase
+	
+	// Timeout and view change state
+	viewTimer         *time.Timer
+	timeoutStarted    bool
+	timeoutMessages   map[types.ViewNumber]map[types.NodeID]*messages.TimeoutMsg
+	newViewMessages   map[types.ViewNumber]map[types.NodeID]*messages.NewViewMsg
+	highestQC         *types.QuorumCertificate
 	
 	// Phase state tracking per block (prevent duplicate phase transitions)
 	processedPhases map[types.BlockHash]map[types.ConsensusPhase]bool
@@ -75,6 +83,11 @@ func NewHotStuffCoordinator(
 		crypto:          crypto,
 		currentView:        0,
 		currentPhase:       types.PhaseNone,
+		viewTimer:          nil,
+		timeoutStarted:     false,
+		timeoutMessages:    make(map[types.ViewNumber]map[types.NodeID]*messages.TimeoutMsg),
+		newViewMessages:    make(map[types.ViewNumber]map[types.NodeID]*messages.NewViewMsg),
+		highestQC:          nil,
 		processedPhases:    make(map[types.BlockHash]map[types.ConsensusPhase]bool),
 		processedCommitQCs: make(map[types.BlockHash]bool),
 		prepareVotes:    make(map[types.BlockHash]map[types.NodeID]*types.Vote),
@@ -109,6 +122,9 @@ func (hc *HotStuffCoordinator) Stop() error {
 	if !hc.started {
 		return nil
 	}
+	
+	// Stop view timer
+	hc.stopViewTimer()
 	
 	hc.cancel()
 	hc.started = false
@@ -162,6 +178,9 @@ func (hc *HotStuffCoordinator) ProposeBlock(payload []byte) error {
 	if err := hc.processProposalInternal(proposal, true); err != nil {
 		return fmt.Errorf("leader failed to validate own proposal: %w", err)
 	}
+	
+	// Start view timer for this proposal (timeout handling)
+	hc.startViewTimer()
 	
 	fmt.Printf("   [Node %d] ✅ Proposed block %x in view %d\n", hc.nodeID, block.Hash[:8], hc.currentView)
 	_ = leaderSig // Store signature in proposal in production
@@ -237,6 +256,11 @@ func (hc *HotStuffCoordinator) processProposalInternal(proposal *messages.Propos
 		}
 		
 		fmt.Printf("   [Node %d] ✅ Voted for block %x in Prepare phase\\n", hc.nodeID, block.Hash[:8])
+	}
+
+	// Start timer for followers when processing proposal
+	if !isLeader {
+		hc.startViewTimer()
 	}
 
 	hc.currentPhase = types.PhasePrepare
@@ -559,6 +583,9 @@ func (hc *HotStuffCoordinator) storeQC(qc *types.QuorumCertificate) error {
 		hc.commitQCs[qc.BlockHash] = qc
 	}
 	
+	// Update highest QC for timeout/view change protocol
+	hc.updateHighestQC(qc)
+	
 	// Line 85-87, 128-130, 151-153: Store QC (fsync to disk)
 	// Use existing storage interface methods
 	_ = fmt.Sprintf("QC_%s_%x_%d", qc.Phase, qc.BlockHash, qc.View) // qcKey for logging
@@ -679,4 +706,251 @@ func (hc *HotStuffCoordinator) AdvanceViewForDemo() {
 	hc.mu.Lock()
 	defer hc.mu.Unlock()
 	hc.advanceView()
+}
+
+// ======= TIMEOUT AND VIEW CHANGE IMPLEMENTATION =======
+// Following data flow diagram lines 176-200
+
+// startViewTimer starts the timeout timer for the current view (protocol line 177-178)
+func (hc *HotStuffCoordinator) startViewTimer() {
+	if !hc.config.IsTimeoutEnabled() {
+		return // Timeouts disabled in config
+	}
+	
+	// Cancel any existing timer
+	hc.stopViewTimer()
+	
+	// Calculate timeout for current view: baseTimeout * 2^view (protocol line 178)
+	timeout := hc.config.GetTimeoutForView(hc.currentView)
+	
+	// Start new timer
+	hc.viewTimer = time.AfterFunc(timeout, func() {
+		hc.onViewTimeout()
+	})
+	hc.timeoutStarted = true
+	
+	fmt.Printf("   [Node %d] ⏰ Started view timer for view %d (timeout: %v)\n", 
+		hc.nodeID, hc.currentView, timeout)
+}
+
+// stopViewTimer stops the current view timer
+func (hc *HotStuffCoordinator) stopViewTimer() {
+	if hc.viewTimer != nil {
+		hc.viewTimer.Stop()
+		hc.viewTimer = nil
+	}
+	hc.timeoutStarted = false
+}
+
+// onViewTimeout handles view timeout (protocol lines 177-188)
+func (hc *HotStuffCoordinator) onViewTimeout() {
+	hc.mu.Lock()
+	defer hc.mu.Unlock()
+	
+	if !hc.timeoutStarted {
+		return // Timer was cancelled
+	}
+	
+	fmt.Printf("   [Node %d] ⏰ View %d timeout detected, initiating view change\n", 
+		hc.nodeID, hc.currentView)
+	
+	// Protocol line 179-182: Sign and broadcast timeout message
+	if err := hc.broadcastTimeoutMessage(); err != nil {
+		fmt.Printf("   [Node %d] ❌ Failed to broadcast timeout: %v\n", hc.nodeID, err)
+	}
+	
+	hc.timeoutStarted = false
+}
+
+// broadcastTimeoutMessage creates and broadcasts timeout message (protocol lines 179-182)
+func (hc *HotStuffCoordinator) broadcastTimeoutMessage() error {
+	// Create timeout message with highest known QC
+	timeoutData := fmt.Sprintf("timeout:%d:%d", hc.currentView, hc.nodeID)
+	signature, err := hc.crypto.Sign([]byte(timeoutData))
+	if err != nil {
+		return fmt.Errorf("failed to sign timeout message: %w", err)
+	}
+	
+	timeoutMsg := messages.NewTimeoutMsg(hc.currentView, hc.highestQC, hc.nodeID, signature)
+	
+	// Broadcast timeout to all validators
+	if err := hc.network.Broadcast(hc.ctx, timeoutMsg); err != nil {
+		return fmt.Errorf("failed to broadcast timeout: %w", err)
+	}
+	
+	// Process our own timeout message
+	if err := hc.processTimeoutMessage(timeoutMsg); err != nil {
+		return fmt.Errorf("failed to process own timeout: %w", err)
+	}
+	
+	fmt.Printf("   [Node %d] 📡 Broadcast timeout for view %d\n", hc.nodeID, hc.currentView)
+	return nil
+}
+
+// ProcessTimeoutMessage processes received timeout messages (protocol line 183)
+func (hc *HotStuffCoordinator) ProcessTimeoutMessage(msg *messages.TimeoutMsg) error {
+	hc.mu.Lock()
+	defer hc.mu.Unlock()
+	return hc.processTimeoutMessage(msg)
+}
+
+// processTimeoutMessage handles timeout message processing
+func (hc *HotStuffCoordinator) processTimeoutMessage(msg *messages.TimeoutMsg) error {
+	// Validate timeout message
+	if err := msg.Validate(hc.config); err != nil {
+		return fmt.Errorf("invalid timeout message: %w", err)
+	}
+	
+	// Verify signature
+	timeoutData := fmt.Sprintf("timeout:%d:%d", msg.ViewNumber, msg.SenderID)
+	if err := hc.crypto.Verify([]byte(timeoutData), msg.Signature, msg.SenderID); err != nil {
+		return fmt.Errorf("invalid timeout signature: %w", err)
+	}
+	
+	// Store timeout message
+	if hc.timeoutMessages[msg.ViewNumber] == nil {
+		hc.timeoutMessages[msg.ViewNumber] = make(map[types.NodeID]*messages.TimeoutMsg)
+	}
+	hc.timeoutMessages[msg.ViewNumber][msg.SenderID] = msg
+	
+	// Update highest QC if this timeout has a higher QC
+	if msg.HighQC != nil && (hc.highestQC == nil || msg.HighQC.View > hc.highestQC.View) {
+		hc.highestQC = msg.HighQC
+	}
+	
+	fmt.Printf("   [Node %d] 📨 Received timeout from Node %d for view %d (%d/%d timeouts)\n", 
+		hc.nodeID, msg.SenderID, msg.ViewNumber, 
+		len(hc.timeoutMessages[msg.ViewNumber]), hc.config.QuorumThreshold())
+	
+	// Check if we have enough timeouts to trigger view change (≥2f+1)
+	if len(hc.timeoutMessages[msg.ViewNumber]) >= hc.config.QuorumThreshold() {
+		return hc.triggerViewChange(msg.ViewNumber)
+	}
+	
+	return nil
+}
+
+// triggerViewChange advances to the next view (protocol lines 184-188)
+func (hc *HotStuffCoordinator) triggerViewChange(timeoutView types.ViewNumber) error {
+	// Only advance if we're still in the timeout view
+	if hc.currentView != timeoutView {
+		return nil // Already advanced
+	}
+	
+	fmt.Printf("   [Node %d] 🔄 Triggering view change from %d to %d\n", 
+		hc.nodeID, hc.currentView, hc.currentView+1)
+	
+	// Stop current view timer
+	hc.stopViewTimer()
+	
+	// Advance to next view
+	nextView := hc.currentView + 1
+	hc.advanceView()
+	
+	// If we're the new leader, broadcast NewView message
+	if hc.isLeader(nextView) {
+		return hc.broadcastNewViewMessage(nextView)
+	}
+	
+	// Start timer for new view
+	hc.startViewTimer()
+	return nil
+}
+
+// broadcastNewViewMessage creates and broadcasts NewView message (protocol line 185-186)
+func (hc *HotStuffCoordinator) broadcastNewViewMessage(view types.ViewNumber) error {
+	// Collect timeout certificates for justification
+	var timeoutCerts []messages.TimeoutMsg
+	if timeouts := hc.timeoutMessages[view-1]; timeouts != nil {
+		for _, timeout := range timeouts {
+			timeoutCerts = append(timeoutCerts, *timeout)
+			if len(timeoutCerts) >= hc.config.QuorumThreshold() {
+				break // Take exactly 2f+1 timeouts
+			}
+		}
+	}
+	
+	// Create NewView message
+	newViewMsg := messages.NewNewViewMsg(view, hc.highestQC, timeoutCerts, hc.nodeID)
+	
+	// Broadcast to all validators
+	if err := hc.network.Broadcast(hc.ctx, newViewMsg); err != nil {
+		return fmt.Errorf("failed to broadcast NewView: %w", err)
+	}
+	
+	fmt.Printf("   [Node %d] 📡 Broadcast NewView for view %d (leader)\n", hc.nodeID, view)
+	
+	// Start timer for new view as leader
+	hc.startViewTimer()
+	return nil
+}
+
+// ProcessNewViewMessage processes received NewView messages (protocol line 187)
+func (hc *HotStuffCoordinator) ProcessNewViewMessage(msg *messages.NewViewMsg) error {
+	hc.mu.Lock()
+	defer hc.mu.Unlock()
+	return hc.processNewViewMessage(msg)
+}
+
+// processNewViewMessage handles NewView message processing
+func (hc *HotStuffCoordinator) processNewViewMessage(msg *messages.NewViewMsg) error {
+	// Validate NewView message
+	if err := msg.Validate(hc.config); err != nil {
+		return fmt.Errorf("invalid NewView message: %w", err)
+	}
+	
+	// Verify this is from the expected leader for the view
+	expectedLeader := hc.getLeader(msg.ViewNumber)
+	if msg.Sender() != expectedLeader {
+		return fmt.Errorf("NewView from wrong leader: got %d, expected %d", 
+			msg.Sender(), expectedLeader)
+	}
+	
+	// Store NewView message
+	if hc.newViewMessages[msg.ViewNumber] == nil {
+		hc.newViewMessages[msg.ViewNumber] = make(map[types.NodeID]*messages.NewViewMsg)
+	}
+	hc.newViewMessages[msg.ViewNumber][msg.Sender()] = msg
+	
+	// Update highest QC if this NewView has a higher QC
+	if msg.HighQC != nil && (hc.highestQC == nil || msg.HighQC.View > hc.highestQC.View) {
+		hc.highestQC = msg.HighQC
+	}
+	
+	fmt.Printf("   [Node %d] 📨 Received NewView from Node %d for view %d\n", 
+		hc.nodeID, msg.Sender(), msg.ViewNumber)
+	
+	// If this is for a higher view than our current, advance
+	if msg.ViewNumber > hc.currentView {
+		hc.stopViewTimer()
+		
+		// Set our view to the new view
+		for hc.currentView < msg.ViewNumber {
+			hc.advanceView()
+		}
+		
+		// Start timer for new view
+		hc.startViewTimer()
+		
+		fmt.Printf("   [Node %d] ✅ Advanced to view %d based on NewView\n", 
+			hc.nodeID, hc.currentView)
+	}
+	
+	return nil
+}
+
+// updateHighestQC updates the highest known QC
+func (hc *HotStuffCoordinator) updateHighestQC(qc *types.QuorumCertificate) {
+	if qc != nil && (hc.highestQC == nil || qc.View > hc.highestQC.View) {
+		hc.highestQC = qc
+		fmt.Printf("   [Node %d] 📈 Updated highest QC to view %d, phase %s\n", 
+			hc.nodeID, qc.View, qc.Phase)
+	}
+}
+
+// GetHighestQC returns the highest known QC
+func (hc *HotStuffCoordinator) GetHighestQC() *types.QuorumCertificate {
+	hc.mu.RLock()
+	defer hc.mu.RUnlock()
+	return hc.highestQC
 }
