@@ -30,8 +30,21 @@ type HotStuffConsensus struct {
 	prepareQC *types.QuorumCertificate
 }
 
-// NewHotStuffConsensus creates a new HotStuff consensus coordinator.
+// NewHotStuffConsensus creates a new HotStuff consensus coordinator with a default genesis block.
 func NewHotStuffConsensus(nodeID types.NodeID, config *types.ConsensusConfig) (*HotStuffConsensus, error) {
+	// Create default genesis block
+	genesisBlock := types.NewBlock(
+		types.BlockHash{}, // No parent
+		0,                 // Height 0
+		0,                 // View 0
+		0,                // Genesis always proposed by Node 0
+		[]byte("genesis"), // Genesis payload
+	)
+	return NewHotStuffConsensusWithGenesis(nodeID, config, genesisBlock)
+}
+
+// NewHotStuffConsensusWithGenesis creates a new HotStuff consensus coordinator with a shared genesis block.
+func NewHotStuffConsensusWithGenesis(nodeID types.NodeID, config *types.ConsensusConfig, genesisBlock *types.Block) (*HotStuffConsensus, error) {
 	if config == nil {
 		return nil, fmt.Errorf("consensus configuration cannot be nil")
 	}
@@ -40,14 +53,13 @@ func NewHotStuffConsensus(nodeID types.NodeID, config *types.ConsensusConfig) (*
 		return nil, fmt.Errorf("invalid node ID: %d", nodeID)
 	}
 	
-	// Create genesis block
-	genesisBlock := types.NewBlock(
-		types.BlockHash{}, // No parent
-		0,                 // Height 0
-		0,                 // View 0
-		nodeID,           // Proposer (any node can be genesis proposer)
-		[]byte("genesis"), // Genesis payload
-	)
+	if genesisBlock == nil {
+		return nil, fmt.Errorf("genesis block cannot be nil")
+	}
+	
+	if !genesisBlock.IsGenesis() {
+		return nil, fmt.Errorf("provided block is not a valid genesis block")
+	}
 	
 	blockTree := NewBlockTree(genesisBlock)
 	safetyRules := NewSafetyRules()
@@ -131,14 +143,13 @@ func (hc *HotStuffConsensus) ProcessProposal(block *types.Block) (*types.Vote, e
 		return nil, fmt.Errorf("safety rules prevent voting for block %x", block.Hash)
 	}
 	
-	// Create and return prepare vote
-	// Note: In a real implementation, this would be signed with the node's private key
+	// Create and return prepare vote (unsigned - coordinator will sign it)
 	vote := types.NewVote(
 		block.Hash,
 		hc.view,
 		types.PhasePrepare,
 		hc.nodeID,
-		[]byte("mock_signature"), // Mock signature for now
+		nil, // Unsigned - coordinator will handle signing
 	)
 	
 	// Record that we voted in this view to prevent double voting

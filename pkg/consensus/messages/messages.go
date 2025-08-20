@@ -14,6 +14,12 @@ const (
 	MsgTypeProposal MessageType = iota
 	// MsgTypeVote represents a vote message
 	MsgTypeVote
+	// MsgTypePrepareQC represents a prepare quorum certificate message
+	MsgTypePrepareQC
+	// MsgTypePreCommitQC represents a pre-commit quorum certificate message
+	MsgTypePreCommitQC
+	// MsgTypeCommitQC represents a commit quorum certificate message
+	MsgTypeCommitQC
 	// MsgTypeTimeout represents a timeout message for view changes
 	MsgTypeTimeout
 	// MsgTypeNewView represents a new view announcement message
@@ -27,6 +33,12 @@ func (mt MessageType) String() string {
 		return "Proposal"
 	case MsgTypeVote:
 		return "Vote"
+	case MsgTypePrepareQC:
+		return "PrepareQC"
+	case MsgTypePreCommitQC:
+		return "PreCommitQC"
+	case MsgTypeCommitQC:
+		return "CommitQC"
 	case MsgTypeTimeout:
 		return "Timeout"
 	case MsgTypeNewView:
@@ -290,6 +302,95 @@ func (nvm *NewViewMsg) Validate(config *types.ConsensusConfig) error {
 			return fmt.Errorf("timeout certificate %d has view %d, expected %d",
 				i, timeout.ViewNumber, nvm.ViewNumber-1)
 		}
+	}
+
+	return nil
+}
+
+// QCMsg represents a quorum certificate message for broadcasting QCs (lines 88, 111, 135, 158)
+type QCMsg struct {
+	// QC is the quorum certificate being broadcast
+	QC *types.QuorumCertificate
+	// QCType indicates which phase this QC is for
+	QCType MessageType
+	// SenderID is the node broadcasting this QC
+	SenderID types.NodeID
+}
+
+// NewPrepareQCMsg creates a new PrepareQC broadcast message (line 88-89)
+func NewPrepareQCMsg(qc *types.QuorumCertificate, sender types.NodeID) *QCMsg {
+	return &QCMsg{
+		QC:       qc,
+		QCType:   MsgTypePrepareQC,
+		SenderID: sender,
+	}
+}
+
+// NewPreCommitQCMsg creates a new PreCommitQC broadcast message (line 135-136)
+func NewPreCommitQCMsg(qc *types.QuorumCertificate, sender types.NodeID) *QCMsg {
+	return &QCMsg{
+		QC:       qc,
+		QCType:   MsgTypePreCommitQC,
+		SenderID: sender,
+	}
+}
+
+// NewCommitQCMsg creates a new CommitQC broadcast message (line 158-159)
+func NewCommitQCMsg(qc *types.QuorumCertificate, sender types.NodeID) *QCMsg {
+	return &QCMsg{
+		QC:       qc,
+		QCType:   MsgTypeCommitQC,
+		SenderID: sender,
+	}
+}
+
+// Type returns the message type.
+func (qm *QCMsg) Type() MessageType {
+	return qm.QCType
+}
+
+// View returns the consensus view number.
+func (qm *QCMsg) View() types.ViewNumber {
+	if qm.QC == nil {
+		return 0
+	}
+	return qm.QC.View
+}
+
+// Sender returns the node that sent this message.
+func (qm *QCMsg) Sender() types.NodeID {
+	return qm.SenderID
+}
+
+// Validate performs basic validation on the QC message.
+func (qm *QCMsg) Validate(config *types.ConsensusConfig) error {
+	if qm.QC == nil {
+		return fmt.Errorf("QC cannot be nil")
+	}
+
+	if err := qm.QC.Validate(config); err != nil {
+		return fmt.Errorf("invalid QC: %w", err)
+	}
+
+	if config != nil && !config.IsValidNodeID(qm.SenderID) {
+		return fmt.Errorf("invalid sender node ID: %d", qm.SenderID)
+	}
+
+	// Validate QC type matches message type
+	expectedPhase := ""
+	switch qm.QCType {
+	case MsgTypePrepareQC:
+		expectedPhase = string(types.PhasePrepare)
+	case MsgTypePreCommitQC:
+		expectedPhase = string(types.PhasePreCommit)
+	case MsgTypeCommitQC:
+		expectedPhase = string(types.PhaseCommit)
+	default:
+		return fmt.Errorf("invalid QC message type: %s", qm.QCType)
+	}
+
+	if string(qm.QC.Phase) != expectedPhase {
+		return fmt.Errorf("QC phase %s does not match message type %s", qm.QC.Phase, qm.QCType)
 	}
 
 	return nil
