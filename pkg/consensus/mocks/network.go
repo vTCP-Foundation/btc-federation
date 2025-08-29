@@ -5,9 +5,11 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"reflect"
 	"sync"
 	"time"
 
+	"btc-federation/pkg/consensus/events"
 	"btc-federation/pkg/consensus/messages"
 	"btc-federation/pkg/consensus/network"
 	"btc-federation/pkg/consensus/types"
@@ -62,25 +64,38 @@ func DefaultNetworkFailureConfig() NetworkFailureConfig {
 
 // MockNetwork implements NetworkInterface for testing with configurable behavior.
 type MockNetwork struct {
-	nodeID     types.NodeID
-	nodes      map[types.NodeID]*MockNetwork
-	msgQueue   chan network.ReceivedMessage
-	config     NetworkConfig
-	failures   NetworkFailureConfig
-	mu         sync.RWMutex
-	rand       *rand.Rand
-	stopped    bool
+	nodeID      types.NodeID
+	nodes       map[types.NodeID]*MockNetwork
+	msgQueue    chan network.ReceivedMessage
+	config      NetworkConfig
+	failures    NetworkFailureConfig
+	eventTracer events.EventTracer
+	mu          sync.RWMutex
+	rand        *rand.Rand
+	stopped     bool
 }
 
 // NewMockNetwork creates a new MockNetwork instance.
 func NewMockNetwork(nodeID types.NodeID, config NetworkConfig, failures NetworkFailureConfig) *MockNetwork {
 	return &MockNetwork{
-		nodeID:   nodeID,
-		nodes:    make(map[types.NodeID]*MockNetwork),
-		msgQueue: make(chan network.ReceivedMessage, config.MessageQueueSize),
-		config:   config,
-		failures: failures,
-		rand:     rand.New(rand.NewSource(time.Now().UnixNano() + int64(nodeID))),
+		nodeID:      nodeID,
+		nodes:       make(map[types.NodeID]*MockNetwork),
+		msgQueue:    make(chan network.ReceivedMessage, config.MessageQueueSize),
+		config:      config,
+		failures:    failures,
+		eventTracer: &NoOpEventTracer{}, // Default to no-op for production safety
+		rand:        rand.New(rand.NewSource(time.Now().UnixNano() + int64(nodeID))),
+	}
+}
+
+// SetEventTracer sets the event tracer for this network instance
+func (mn *MockNetwork) SetEventTracer(tracer events.EventTracer) {
+	mn.mu.Lock()
+	defer mn.mu.Unlock()
+	if tracer != nil {
+		mn.eventTracer = tracer
+	} else {
+		mn.eventTracer = &NoOpEventTracer{}
 	}
 }
 
@@ -102,6 +117,15 @@ func (mn *MockNetwork) SetPeers(peers map[types.NodeID]*MockNetwork) {
 func (mn *MockNetwork) Send(ctx context.Context, nodeID types.NodeID, message messages.ConsensusMessage) error {
 	mn.mu.RLock()
 	defer mn.mu.RUnlock()
+	
+	// Record outbound message event
+	if mn.eventTracer != nil {
+		mn.eventTracer.RecordMessage(uint16(mn.nodeID), events.MessageOutbound, 
+			reflect.TypeOf(message).Elem().Name(), events.EventPayload{
+				"destination":   nodeID,
+				"message_type":  reflect.TypeOf(message).Elem().Name(),
+			})
+	}
 	
 	if mn.stopped {
 		return network.NewNetworkError(network.ErrorTypeConnection, "network is stopped")
@@ -149,6 +173,16 @@ func (mn *MockNetwork) Send(ctx context.Context, nodeID types.NodeID, message me
 func (mn *MockNetwork) Broadcast(ctx context.Context, message messages.ConsensusMessage) error {
 	mn.mu.RLock()
 	defer mn.mu.RUnlock()
+	
+	// Record broadcast message event
+	if mn.eventTracer != nil {
+		mn.eventTracer.RecordMessage(uint16(mn.nodeID), events.MessageOutbound, 
+			reflect.TypeOf(message).Elem().Name(), events.EventPayload{
+				"destination":   "broadcast",
+				"message_type":  reflect.TypeOf(message).Elem().Name(),
+				"peer_count":    len(mn.nodes),
+			})
+	}
 	
 	if mn.stopped {
 		return network.NewNetworkError(network.ErrorTypeConnection, "network is stopped")
@@ -293,11 +327,27 @@ func (mn *MockNetwork) deliverMessage(ctx context.Context, target *MockNetwork, 
 	if !stopped {
 		select {
 		case target.msgQueue <- receivedMsg:
-			// Message delivered successfully
+			// Record inbound message event on target node
+			if target.eventTracer != nil {
+				target.eventTracer.RecordMessage(uint16(target.nodeID), events.MessageInbound, 
+					reflect.TypeOf(message).Elem().Name(), events.EventPayload{
+						"sender":       mn.nodeID,
+						"message_type": reflect.TypeOf(message).Elem().Name(),
+						"delay":        time.Since(receivedMsg.ReceivedAt),
+					})
+			}
 		case <-ctx.Done():
 			// Context cancelled during delivery
 		default:
 			// Queue is full, message dropped
+			if target.eventTracer != nil {
+				target.eventTracer.RecordEvent(uint16(target.nodeID), "message_dropped", 
+					events.EventPayload{
+						"sender":       mn.nodeID,
+						"message_type": reflect.TypeOf(message).Elem().Name(),
+						"reason":       "queue_full",
+					})
+			}
 		}
 	}
 }

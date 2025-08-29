@@ -1,6 +1,7 @@
 # Mock Infrastructure Components
 
-This package provides mock implementations of the consensus interfaces defined in Task 05-03. These mocks enable comprehensive testing of the HotStuff consensus protocol without requiring real network, storage, or cryptographic infrastructure.
+This package provides mock implementations of the consensus interfaces.
+These mocks enable comprehensive testing of the HotStuff consensus protocol without requiring real network, storage, or cryptographic infrastructure.
 
 ## Overview
 
@@ -53,7 +54,7 @@ case msg := <-network.Receive():
 
 ### MockStorage
 
-Provides in-memory storage with configurable persistence delays and failure simulation.
+Provides **in-memory** storage with configurable persistence delays and failure simulation.
 
 **Key Features:**
 - Block and QuorumCertificate storage
@@ -80,7 +81,7 @@ retrievedBlock, err := storage.GetBlock(blockHash)
 
 ### MockCrypto
 
-Implements cryptographic operations with deterministic behavior for reproducible testing.
+Implements cryptographic operations with deterministic behavior for reproducible testing (no real cryptography is used).
 
 **Key Features:**
 - Deterministic signature generation
@@ -180,14 +181,14 @@ The package includes several predefined test scenarios:
 func TestConsensusLogic(t *testing.T) {
     mockConfig := mocks.DefaultMockConfig()
     failures := mocks.DefaultFailureConfig()
-    
+
     network := mocks.NewMockNetwork(0, mockConfig.Network, failures.Network)
     storage := mocks.NewMockStorage(mockConfig.Storage, failures.Storage)
     crypto := mocks.NewMockCrypto(0, mockConfig.Crypto, failures.Crypto)
-    
+
     // Test consensus logic with mocks
     consensus := NewConsensusEngine(network, storage, crypto)
-    
+
     // Verify behavior
     assert.NoError(t, consensus.ProcessMessage(testMessage))
 }
@@ -199,16 +200,16 @@ func TestConsensusLogic(t *testing.T) {
 func TestMultiNodeConsensus(t *testing.T) {
     scenario := mocks.HappyPathScenario()
     env := mocks.NewTestEnvironment(scenario)
-    
+
     require.NoError(t, env.CreateNodes())
     require.NoError(t, env.ConnectNodes())
-    
+
     env.StartAllNodes()
     defer env.Cleanup()
-    
+
     // Run consensus and verify results
     time.Sleep(scenario.Duration)
-    
+
     stats := env.GetEnvironmentStats()
     assert.Equal(t, scenario.NodeCount, stats.RunningNodes)
 }
@@ -220,20 +221,20 @@ func TestMultiNodeConsensus(t *testing.T) {
 func TestByzantineFaultTolerance(t *testing.T) {
     scenario := mocks.ByzantineLeaderScenario()
     env := mocks.NewTestEnvironment(scenario)
-    
+
     require.NoError(t, env.CreateNodes())
     require.NoError(t, env.ConnectNodes())
-    
+
     // Configure Byzantine behavior
     env.SetByzantineNodes([]types.NodeID{0})
-    
+
     env.StartAllNodes()
     defer env.Cleanup()
-    
+
     // Verify system handles Byzantine behavior
     err := env.RunScenario()
     assert.NoError(t, err)
-    
+
     validation := scenario.GetValidationConfig()
     assert.True(t, validation.ExpectedConsensus)
 }
@@ -329,7 +330,7 @@ consensus := NewConsensusEngine(network, storage, crypto)
 Run the comprehensive demo to see all components in action:
 
 ```bash
-go run cmd/mock-infrastructure-demo/main.go
+go run ./cmd/demo/hotstuff/mock-infrastructure-demo/
 ```
 
 The demo demonstrates:
