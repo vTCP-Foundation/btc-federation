@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"btc-federation/pkg/consensus/engine"
+	"btc-federation/pkg/consensus/events"
 	"btc-federation/pkg/consensus/integration"
 	"btc-federation/pkg/consensus/mocks"
 	"btc-federation/pkg/consensus/types"
@@ -62,7 +63,7 @@ func main() {
 	crypto := mocks.NewMockCrypto(nodeID, cryptoConfig, cryptoFailures)
 
 	// Create consensus engine
-	consensus, err := engine.NewHotStuffConsensus(nodeID, config)
+	consensus, err := engine.NewHotStuffConsensus(nodeID, config, &events.NoOpEventTracer{})
 	if err != nil {
 		log.Fatalf("Failed to create consensus: %v", err)
 	}

@@ -55,7 +55,7 @@ func demoNodeInitialization(config *types.ConsensusConfig) {
 	
 	for i := 0; i < config.TotalNodes(); i++ {
 		nodeID := types.NodeID(i)
-		node, err := engine.NewHotStuffConsensus(nodeID, config)
+		node, err := engine.NewHotStuffConsensus(nodeID, config, &mocks.NoOpEventTracer{})
 		if err != nil {
 			log.Fatalf("Failed to create consensus node %d: %v", nodeID, err)
 		}
@@ -72,7 +72,7 @@ func demoNodeInitialization(config *types.ConsensusConfig) {
 func demoBlockProposalProcessing(config *types.ConsensusConfig) {
 	// Create a consensus node
 	nodeID := types.NodeID(1)
-	node, err := engine.NewHotStuffConsensus(nodeID, config)
+	node, err := engine.NewHotStuffConsensus(nodeID, config, &mocks.NoOpEventTracer{})
 	if err != nil {
 		log.Fatalf("Failed to create consensus node: %v", err)
 	}
@@ -123,7 +123,7 @@ func demoBlockProposalProcessing(config *types.ConsensusConfig) {
 
 func demoVoteCollectionAndQC(config *types.ConsensusConfig) {
 	// Create a consensus node to collect votes
-	collectorNode, err := engine.NewHotStuffConsensus(types.NodeID(0), config)
+	collectorNode, err := engine.NewHotStuffConsensus(types.NodeID(0), config, &mocks.NoOpEventTracer{})
 	if err != nil {
 		log.Fatalf("Failed to create collector node: %v", err)
 	}
@@ -191,7 +191,7 @@ func demoVoteCollectionAndQC(config *types.ConsensusConfig) {
 
 func demoThreePhaseTransitions(config *types.ConsensusConfig) {
 	// Create a consensus node
-	node, err := engine.NewHotStuffConsensus(types.NodeID(0), config)
+	node, err := engine.NewHotStuffConsensus(types.NodeID(0), config, &mocks.NoOpEventTracer{})
 	if err != nil {
 		log.Fatalf("Failed to create consensus node: %v", err)
 	}
@@ -295,7 +295,7 @@ func demoThreePhaseTransitions(config *types.ConsensusConfig) {
 
 func demoSafetyRuleEnforcement(config *types.ConsensusConfig) {
 	// Create a consensus node
-	node, err := engine.NewHotStuffConsensus(types.NodeID(1), config)
+	node, err := engine.NewHotStuffConsensus(types.NodeID(1), config, &mocks.NoOpEventTracer{})
 	if err != nil {
 		log.Fatalf("Failed to create consensus node: %v", err)
 	}
@@ -368,7 +368,7 @@ func demoSafetyRuleEnforcement(config *types.ConsensusConfig) {
 
 func demoBlockTreeForkHandling(config *types.ConsensusConfig) {
 	// Create a consensus node
-	node, err := engine.NewHotStuffConsensus(types.NodeID(0), config)
+	node, err := engine.NewHotStuffConsensus(types.NodeID(0), config, &mocks.NoOpEventTracer{})
 	if err != nil {
 		log.Fatalf("Failed to create consensus node: %v", err)
 	}

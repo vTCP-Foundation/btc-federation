@@ -462,6 +462,11 @@ func (hc *HotStuffCoordinator) processProposalInternal(proposal *messages.Propos
 		hc.startViewTimer()
 	}
 
+	// Start timer for followers when processing proposal
+	if !isLeader {
+		hc.startViewTimer()
+	}
+
 	hc.currentPhase = types.PhasePrepare
 	return nil
 }

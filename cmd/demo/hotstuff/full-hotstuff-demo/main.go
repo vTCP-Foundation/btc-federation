@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"btc-federation/pkg/consensus/engine"
+	"btc-federation/pkg/consensus/events"
 	"btc-federation/pkg/consensus/integration"
 	"btc-federation/pkg/consensus/messages"
 	"btc-federation/pkg/consensus/mocks"
@@ -137,7 +138,7 @@ func (cc *ConsensusController) Initialize() error {
 		}
 		
 		// Create consensus engine with shared genesis block
-		consensus, err := engine.NewHotStuffConsensusWithGenesis(nodeID, config, sharedGenesisBlock)
+		consensus, err := engine.NewHotStuffConsensusWithGenesis(nodeID, config, sharedGenesisBlock, &events.NoOpEventTracer{})
 		if err != nil {
 			return fmt.Errorf("failed to create consensus for node %d: %w", nodeID, err)
 		}
@@ -151,6 +152,7 @@ func (cc *ConsensusController) Initialize() error {
 			network,
 			storage,
 			crypto,
+			&events.NoOpEventTracer{}, // Demo doesn't need event tracing
 		)
 
 		if err := coordinator.Start(); err != nil {
