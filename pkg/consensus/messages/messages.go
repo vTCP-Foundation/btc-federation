@@ -377,19 +377,19 @@ func (qm *QCMsg) Validate(config *types.ConsensusConfig) error {
 	}
 
 	// Validate QC type matches message type
-	expectedPhase := ""
+	var expectedPhase types.ConsensusPhase
 	switch qm.QCType {
 	case MsgTypePrepareQC:
-		expectedPhase = string(types.PhasePrepare)
+		expectedPhase = types.PhasePrepare
 	case MsgTypePreCommitQC:
-		expectedPhase = string(types.PhasePreCommit)
+		expectedPhase = types.PhasePreCommit
 	case MsgTypeCommitQC:
-		expectedPhase = string(types.PhaseCommit)
+		expectedPhase = types.PhaseCommit
 	default:
 		return fmt.Errorf("invalid QC message type: %s", qm.QCType)
 	}
 
-	if string(qm.QC.Phase) != expectedPhase {
+	if qm.QC.Phase != expectedPhase {
 		return fmt.Errorf("QC phase %s does not match message type %s", qm.QC.Phase, qm.QCType)
 	}
 

@@ -34,9 +34,13 @@ func NewSafetyRules() *SafetyRules {
 
 // CanVote determines whether it's safe to vote for a given block according to HotStuff safety rules.
 // The safety rules prevent voting for conflicting blocks that could lead to safety violations.
-func (sr *SafetyRules) CanVote(block *types.Block, currentLockedQC *types.QuorumCertificate) (bool, error) {
+func (sr *SafetyRules) CanVote(block *types.Block, currentLockedQC *types.QuorumCertificate, blockTree *BlockTree) (bool, error) {
 	if block == nil {
 		return false, fmt.Errorf("block cannot be nil")
+	}
+	
+	if blockTree == nil {
+		return false, fmt.Errorf("blockTree cannot be nil")
 	}
 	
 	// Rule 1: Don't vote twice in the same view (prevent equivocation)
@@ -45,16 +49,19 @@ func (sr *SafetyRules) CanVote(block *types.Block, currentLockedQC *types.Quorum
 	}
 	
 	// Rule 2: If we have a locked QC, only vote for blocks that extend the locked chain
+	// SAFENODE predicate: (block extends from lockedQC.block) OR (justify.view > lockedQC.view)
 	if sr.lockedQC != nil {
 		// The block must either:
 		// a) Be the same block we're locked on, or
-		// b) Have the locked block as an ancestor
+		// b) Have the locked block as an ancestor (proper ancestry check)
 		if block.Hash != sr.lockedQC.BlockHash {
-			// In a complete implementation, we would check ancestry through the block tree
-			// For now, we use a simplified check: the block's parent must be the locked block
-			// or the block must be on a higher view (indicating potential chain extension)
-			if block.View <= sr.lockedQC.View {
-				return false, nil
+			// Proper SAFENODE check: verify block extends from locked block
+			isDescendant, err := blockTree.IsAncestor(sr.lockedQC.BlockHash, block.Hash)
+			if err != nil {
+				return false, fmt.Errorf("failed to verify block ancestry for safety check: %w", err)
+			}
+			if !isDescendant {
+				return false, nil // Block doesn't extend from locked block
 			}
 		}
 	}
@@ -70,15 +77,18 @@ func (sr *SafetyRules) CanVote(block *types.Block, currentLockedQC *types.Quorum
 	return true, nil
 }
 
-// UpdateLockedQC updates the locked quorum certificate when we receive a pre-commit QC.
+// UpdateLockedQC updates the locked quorum certificate when we receive a prepare or pre-commit QC.
 // This represents a commitment to a specific chain that we cannot abandon.
+// For non-pipelined HotStuff, locking happens on PrepareQC as per the data flow specification.
 func (sr *SafetyRules) UpdateLockedQC(qc *types.QuorumCertificate) error {
 	if qc == nil {
 		return fmt.Errorf("quorum certificate cannot be nil")
 	}
 	
-	if qc.Phase != types.PhasePreCommit {
-		return fmt.Errorf("only pre-commit QCs can update locked QC, got %s", qc.Phase)
+	// ARCHITECTURAL FIX: Non-pipelined HotStuff locks on PrepareQC per data flow diagram
+	// Standard pipelined HotStuff locks on PreCommit, but this is Simple HotStuff
+	if qc.Phase != types.PhasePrepare && qc.Phase != types.PhasePreCommit {
+		return fmt.Errorf("only prepare or pre-commit QCs can update locked QC, got %s", qc.Phase)
 	}
 	
 	// Only update if the new QC is from a higher or equal view

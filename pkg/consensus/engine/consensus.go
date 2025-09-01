@@ -4,6 +4,7 @@ package engine
 import (
 	"fmt"
 
+	"btc-federation/pkg/consensus/events"
 	"btc-federation/pkg/consensus/types"
 )
 
@@ -16,6 +17,8 @@ type HotStuffConsensus struct {
 	view types.ViewNumber
 	// config contains the consensus network configuration
 	config *types.ConsensusConfig
+	// eventTracer for recording consensus events
+	eventTracer events.EventTracer
 	
 	// blockTree manages the block chain and forks
 	blockTree *BlockTree
@@ -31,7 +34,7 @@ type HotStuffConsensus struct {
 }
 
 // NewHotStuffConsensus creates a new HotStuff consensus coordinator with a default genesis block.
-func NewHotStuffConsensus(nodeID types.NodeID, config *types.ConsensusConfig) (*HotStuffConsensus, error) {
+func NewHotStuffConsensus(nodeID types.NodeID, config *types.ConsensusConfig, eventTracer events.EventTracer) (*HotStuffConsensus, error) {
 	// Create default genesis block
 	genesisBlock := types.NewBlock(
 		types.BlockHash{}, // No parent
@@ -40,11 +43,11 @@ func NewHotStuffConsensus(nodeID types.NodeID, config *types.ConsensusConfig) (*
 		0,                // Genesis always proposed by Node 0
 		[]byte("genesis"), // Genesis payload
 	)
-	return NewHotStuffConsensusWithGenesis(nodeID, config, genesisBlock)
+	return NewHotStuffConsensusWithGenesis(nodeID, config, genesisBlock, eventTracer)
 }
 
 // NewHotStuffConsensusWithGenesis creates a new HotStuff consensus coordinator with a shared genesis block.
-func NewHotStuffConsensusWithGenesis(nodeID types.NodeID, config *types.ConsensusConfig, genesisBlock *types.Block) (*HotStuffConsensus, error) {
+func NewHotStuffConsensusWithGenesis(nodeID types.NodeID, config *types.ConsensusConfig, genesisBlock *types.Block, eventTracer events.EventTracer) (*HotStuffConsensus, error) {
 	if config == nil {
 		return nil, fmt.Errorf("consensus configuration cannot be nil")
 	}
@@ -69,6 +72,7 @@ func NewHotStuffConsensusWithGenesis(nodeID types.NodeID, config *types.Consensu
 		nodeID:      nodeID,
 		view:        0,
 		config:      config,
+		eventTracer: eventTracer,
 		blockTree:   blockTree,
 		safetyRules: safetyRules,
 		votingRule:  votingRule,
@@ -111,6 +115,15 @@ func (hc *HotStuffConsensus) ProcessProposal(block *types.Block) (*types.Vote, e
 	
 	// Validate block structure
 	if err := block.Validate(hc.config); err != nil {
+		// Record validation failure event
+		if hc.eventTracer != nil {
+			hc.eventTracer.RecordEvent(uint16(hc.nodeID), events.EventProposalRejected, events.EventPayload{
+				"block_hash": block.Hash,
+				"view":       block.View,
+				"reason":     "validation_failed",
+				"error":      err.Error(),
+			})
+		}
 		return nil, fmt.Errorf("invalid block: %w", err)
 	}
 	
@@ -134,14 +147,26 @@ func (hc *HotStuffConsensus) ProcessProposal(block *types.Block) (*types.Vote, e
 		return nil, fmt.Errorf("failed to add block to tree: %w", err)
 	}
 	
+	// Block addition event is now handled by coordinator
+	
 	// Check safety rules before voting
-	canVote, err := hc.safetyRules.CanVote(block, hc.lockedQC)
+	canVote, err := hc.safetyRules.CanVote(block, hc.lockedQC, hc.blockTree)
 	if err != nil {
 		return nil, fmt.Errorf("safety rule check failed: %w", err)
 	}
 	if !canVote {
+		// Record safety rule rejection event
+		if hc.eventTracer != nil {
+			hc.eventTracer.RecordEvent(uint16(hc.nodeID), events.EventProposalRejected, events.EventPayload{
+				"block_hash": block.Hash,
+				"view":       block.View,
+				"reason":     "safety_rules",
+			})
+		}
 		return nil, fmt.Errorf("safety rules prevent voting for block %x", block.Hash)
 	}
+	
+	// SafeNode predicate event is now handled by coordinator
 	
 	// Create and return prepare vote (unsigned - coordinator will sign it)
 	vote := types.NewVote(
@@ -151,6 +176,16 @@ func (hc *HotStuffConsensus) ProcessProposal(block *types.Block) (*types.Vote, e
 		hc.nodeID,
 		nil, // Unsigned - coordinator will handle signing
 	)
+	
+	// Record vote creation event at consensus engine level
+	if hc.eventTracer != nil {
+		hc.eventTracer.RecordEvent(uint16(hc.nodeID), events.EventBlockValidated, events.EventPayload{
+			"block_hash":   block.Hash,
+			"view":         block.View,
+			"vote_created": true,
+			"phase":        types.PhasePrepare,
+		})
+	}
 	
 	// Record that we voted in this view to prevent double voting
 	hc.safetyRules.RecordVote(hc.view)
@@ -183,6 +218,16 @@ func (hc *HotStuffConsensus) ProcessVote(vote *types.Vote) (*types.QuorumCertifi
 	}
 	
 	return qc, nil
+}
+
+// ProcessQC processes a received quorum certificate directly.
+// This is used when a QC is received from another node rather than being formed locally.
+func (hc *HotStuffConsensus) ProcessQC(qc *types.QuorumCertificate) error {
+	if qc == nil {
+		return fmt.Errorf("quorum certificate cannot be nil")
+	}
+	
+	return hc.processQuorumCertificate(qc)
 }
 
 // ProcessTimeout handles view timeout and advances to the next view.

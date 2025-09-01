@@ -8,18 +8,6 @@ import (
 	"btc-federation/pkg/consensus/events"
 )
 
-// NoOpEventTracer provides a zero-overhead implementation for production use.
-// All methods are no-ops and should be optimized away by the compiler.
-type NoOpEventTracer struct{}
-
-// RecordEvent does nothing in production builds
-func (t *NoOpEventTracer) RecordEvent(nodeID uint16, eventType events.EventType, payload events.EventPayload) {}
-
-// RecordTransition does nothing in production builds
-func (t *NoOpEventTracer) RecordTransition(nodeID uint16, from, to events.State, trigger string) {}
-
-// RecordMessage does nothing in production builds  
-func (t *NoOpEventTracer) RecordMessage(nodeID uint16, direction events.MessageDirection, msgType string, payload events.EventPayload) {}
 
 // ConsensusEventTracer provides centralized event collection for testing.
 // This implementation is thread-safe and collects all events for later analysis.

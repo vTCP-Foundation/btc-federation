@@ -83,7 +83,7 @@ func NewMockNetwork(nodeID types.NodeID, config NetworkConfig, failures NetworkF
 		msgQueue:    make(chan network.ReceivedMessage, config.MessageQueueSize),
 		config:      config,
 		failures:    failures,
-		eventTracer: &NoOpEventTracer{}, // Default to no-op for production safety
+		eventTracer: &events.NoOpEventTracer{}, // Default to no-op for production safety
 		rand:        rand.New(rand.NewSource(time.Now().UnixNano() + int64(nodeID))),
 	}
 }
@@ -95,7 +95,7 @@ func (mn *MockNetwork) SetEventTracer(tracer events.EventTracer) {
 	if tracer != nil {
 		mn.eventTracer = tracer
 	} else {
-		mn.eventTracer = &NoOpEventTracer{}
+		mn.eventTracer = &events.NoOpEventTracer{}
 	}
 }
 
