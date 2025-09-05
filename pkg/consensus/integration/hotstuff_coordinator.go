@@ -135,6 +135,12 @@ func (hc *HotStuffCoordinator) Start() error {
 		go hc.sendNewViewMessageToLeader(hc.currentView)
 	}
 	
+	// CRITICAL FIX: Start view timer for all nodes upon entering view 0
+	// This ensures validators can detect leader failures via timeout, enabling view changes
+	// Follows HotStuff pacemaker specification: "Single view timer for entire view"
+	hc.stopViewTimer()  // Stop any existing timer first to prevent conflicts
+	hc.startViewTimer()
+	
 	return nil
 }
 
@@ -480,6 +486,7 @@ func (hc *HotStuffCoordinator) processProposalInternal(proposal *messages.Propos
 
 	// Start timer for followers when processing proposal
 	if !isLeader {
+		hc.stopViewTimer()  // Stop any existing timer first to prevent conflicts
 		hc.startViewTimer()
 	}
 
@@ -1673,6 +1680,7 @@ func (hc *HotStuffCoordinator) processNewViewMessage(msg *messages.NewViewMsg) e
 		}
 		
 		// Start timer for new view
+		hc.stopViewTimer()  // Stop any existing timer first to prevent conflicts
 		hc.startViewTimer()
 		
 		fmt.Printf("   [Node %d] ✅ Advanced to view %d based on NewView\n", 
@@ -1968,6 +1976,11 @@ func (hc *HotStuffCoordinator) sendNewViewMessageToLeader(view types.ViewNumber)
 	}
 
 	fmt.Printf("   [Node %d] 📤 Sent NewView message to leader %d for view %d\n", hc.nodeID, leader, view)
+
+	// CRITICAL FIX: Start view timer after sending NewView message
+	// Non-leader nodes must also start timeout detection to handle leader failures
+	hc.stopViewTimer()  // Stop any existing timer first to prevent conflicts
+	hc.startViewTimer()
 }
 
 // updateHighestQC updates the highest known QC
