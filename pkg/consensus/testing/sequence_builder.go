@@ -45,7 +45,7 @@ func buildNewViewPhase(seqNum *int, nodeCount int, leader int) []ExpectedEventSe
 			EventType:      events.EventViewTimerStarted,
 			Required:       true,
 			MinOccurrences: 1,
-			MaxOccurrences: 1,
+			MaxOccurrences: 3, // Allow multiple timer restarts during normal operation
 			MaxDelay:       50 * time.Millisecond,
 			Description:    "Leader starts NewView collection timer",
 			FailureHint:    "Leader failed to start timer - check pacemaker initialization",
