@@ -27,5 +27,10 @@ Thumbs.db
 *.swo
 *~
 
+# Environment variables
+.env
+.env.local
+.env.*.local
+
 # AI-agents
 .gemini
