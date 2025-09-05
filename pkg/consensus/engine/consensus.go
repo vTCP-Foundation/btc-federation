@@ -31,6 +31,8 @@ type HotStuffConsensus struct {
 	lockedQC *types.QuorumCertificate
 	// prepareQC is the highest prepare quorum certificate received
 	prepareQC *types.QuorumCertificate
+	// preCommitQC is the highest pre-commit quorum certificate received
+	preCommitQC *types.QuorumCertificate
 }
 
 // NewHotStuffConsensus creates a new HotStuff consensus coordinator with a default genesis block.
@@ -275,13 +277,14 @@ func (hc *HotStuffConsensus) processPrepareQC(qc *types.QuorumCertificate) error
 }
 
 // processPreCommitQC handles a pre-commit phase quorum certificate.
+// SAFETY FIX: PreCommit QC processing should NOT update lockedQC
 func (hc *HotStuffConsensus) processPreCommitQC(qc *types.QuorumCertificate) error {
-	// Update locked QC
-	hc.lockedQC = qc
+	// Store PreCommitQC for later use, but DO NOT update lockedQC
+	hc.preCommitQC = qc
 	
-	// Update safety rules
-	if err := hc.safetyRules.UpdateLockedQC(qc); err != nil {
-		return fmt.Errorf("failed to update locked QC in safety rules: %w", err)
+	// Update safety rules with PreCommit QC (but not locked QC)
+	if err := hc.safetyRules.UpdatePreCommitQC(qc); err != nil {
+		return fmt.Errorf("failed to update precommit QC in safety rules: %w", err)
 	}
 	
 	return nil
@@ -298,6 +301,28 @@ func (hc *HotStuffConsensus) processCommitQC(qc *types.QuorumCertificate) error 
 	// Commit the block
 	if err := hc.blockTree.CommitBlock(block); err != nil {
 		return fmt.Errorf("failed to commit block %x: %w", qc.BlockHash, err)
+	}
+	
+	return nil
+}
+
+// UpdateLockedQC updates the locked QC with a PreCommitQC (HotStuff Algorithm 2 line 25).
+// This should only be called during the Commit phase after receiving a PreCommitQC.
+func (hc *HotStuffConsensus) UpdateLockedQC(preCommitQC *types.QuorumCertificate) error {
+	if preCommitQC == nil {
+		return fmt.Errorf("precommit QC cannot be nil")
+	}
+	
+	if preCommitQC.Phase != types.PhasePreCommit {
+		return fmt.Errorf("can only update lockedQC with PreCommit QC, got %s", preCommitQC.Phase)
+	}
+	
+	// Update the locked QC (HotStuff Algorithm 2 line 25)
+	hc.lockedQC = preCommitQC
+	
+	// Update safety rules
+	if err := hc.safetyRules.UpdateLockedQC(preCommitQC); err != nil {
+		return fmt.Errorf("failed to update locked QC in safety rules: %w", err)
 	}
 	
 	return nil

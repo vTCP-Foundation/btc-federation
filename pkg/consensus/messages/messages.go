@@ -241,26 +241,29 @@ func (tm *TimeoutMsg) Validate(config *types.ConsensusConfig) error {
 	return nil
 }
 
-// NewViewMsg represents a new view announcement message sent by the new leader.
+// NewViewMsg represents a NewView message sent by a validator to the leader.
 type NewViewMsg struct {
-	// ViewNumber is the new view number
-	ViewNumber types.ViewNumber
-	// HighQC is the highest QC that justifies this view change
-	HighQC *types.QuorumCertificate
-	// TimeoutCerts contains timeout certificates that justify the view change
-	TimeoutCerts []TimeoutMsg
-	// Leader is the new leader for this view
-	Leader types.NodeID
+    // ViewNumber is the new view number
+    ViewNumber types.ViewNumber
+    // HighQC is the highest QC that justifies this view change
+    HighQC *types.QuorumCertificate
+    // TimeoutCerts contains timeout certificates that justify the view change
+    TimeoutCerts []TimeoutMsg
+    // SenderID is the validator sending this NewView to the leader
+    SenderID types.NodeID
+    // Signature is the cryptographic signature of this NewView message
+    Signature []byte
 }
 
 // NewNewViewMsg creates a new view message.
-func NewNewViewMsg(view types.ViewNumber, highQC *types.QuorumCertificate, timeouts []TimeoutMsg, leader types.NodeID) *NewViewMsg {
-	return &NewViewMsg{
-		ViewNumber:   view,
-		HighQC:       highQC,
-		TimeoutCerts: timeouts,
-		Leader:       leader,
-	}
+func NewNewViewMsg(view types.ViewNumber, highQC *types.QuorumCertificate, timeouts []TimeoutMsg, sender types.NodeID, signature []byte) *NewViewMsg {
+    return &NewViewMsg{
+        ViewNumber:   view,
+        HighQC:       highQC,
+        TimeoutCerts: timeouts,
+        SenderID:     sender,
+        Signature:    signature,
+    }
 }
 
 // Type returns the message type.
@@ -270,26 +273,26 @@ func (nvm *NewViewMsg) Type() MessageType {
 
 // View returns the consensus view number.
 func (nvm *NewViewMsg) View() types.ViewNumber {
-	return nvm.ViewNumber
+    return nvm.ViewNumber
 }
 
 // Sender returns the node that sent this message.
 func (nvm *NewViewMsg) Sender() types.NodeID {
-	return nvm.Leader
+    return nvm.SenderID
 }
 
 // Validate performs basic validation on the new view message.
 func (nvm *NewViewMsg) Validate(config *types.ConsensusConfig) error {
-	if config != nil && !config.IsValidNodeID(nvm.Leader) {
-		return fmt.Errorf("invalid leader node ID: %d", nvm.Leader)
-	}
+    if config != nil && !config.IsValidNodeID(nvm.SenderID) {
+        return fmt.Errorf("invalid sender node ID: %d", nvm.SenderID)
+    }
 
-	// HighQC can be nil for view 0
-	if nvm.HighQC != nil {
-		if err := nvm.HighQC.Validate(config); err != nil {
-			return fmt.Errorf("invalid high QC: %w", err)
-		}
-	}
+    // HighQC can be nil for view 0
+    if nvm.HighQC != nil {
+        if err := nvm.HighQC.Validate(config); err != nil {
+            return fmt.Errorf("invalid high QC: %w", err)
+        }
+    }
 
 	// Validate timeout certificates
 	for i, timeout := range nvm.TimeoutCerts {
@@ -304,7 +307,12 @@ func (nvm *NewViewMsg) Validate(config *types.ConsensusConfig) error {
 		}
 	}
 
-	return nil
+    // Signature must be present (cryptographic verification done separately)
+    if len(nvm.Signature) == 0 {
+        return fmt.Errorf("NewView message signature cannot be empty")
+    }
+
+    return nil
 }
 
 // QCMsg represents a quorum certificate message for broadcasting QCs (lines 88, 111, 135, 158)

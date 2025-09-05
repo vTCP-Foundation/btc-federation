@@ -168,7 +168,12 @@ func (hc *HotStuffCoordinator) ProposeBlock(payload []byte) error {
 	if !hc.isLeader(hc.currentView) {
 		return fmt.Errorf("node %d is not leader for view %d", hc.nodeID, hc.currentView)
 	}
-	
+
+	// FIX for partition test: Stop any existing timer before starting the proposal process.
+	// This ensures the leader has the full timeout duration for NewView collection
+	// and prevents a race condition where its own timer expires prematurely.
+	hc.stopViewTimer()
+
 	// Start view timer BEFORE NewView collection (protocol timing)
 	hc.startViewTimer()
 	
@@ -224,10 +229,13 @@ func (hc *HotStuffCoordinator) ProposeBlock(payload []byte) error {
 		})
 	}
 
-	// Leader doesn't "receive" its own proposal - only validators do
+	// PROTOCOL FIX: Leader must also act as a validator for its own proposal
+	// According to data-flow.mermaid lines 202-205: Leader broadcasts to ALL validators (including itself)
+	// The leader must participate in both roles:
+	// 1. Leader role: Create and broadcast proposal, collect votes
+	// 2. Validator role: Validate and vote for the proposal (like any other validator)
 	
-	// Leader processes its own proposal immediately (protocol compliance)
-	// This ensures the leader validates its own proposal before broadcasting
+	// Process proposal as leader (but also create votes like a validator) to ensure vote creation and processing
 	if err := hc.processProposalInternal(proposal, true); err != nil {
 		return fmt.Errorf("leader failed to validate own proposal: %w", err)
 	}
@@ -409,8 +417,8 @@ func (hc *HotStuffCoordinator) processProposalInternal(proposal *messages.Propos
 
 	// Line 51-52: Sign prepare vote
 	if vote != nil {
-		// Record prepare vote creation event only for validators
-		if hc.eventTracer != nil && !isLeader {
+		// Record prepare vote creation event for all validators (including leader as validator)
+		if hc.eventTracer != nil {
 			hc.eventTracer.RecordEvent(uint16(hc.nodeID), events.EventPrepareVoteCreated, events.EventPayload{
 				"block_hash": vote.BlockHash,
 				"view":       vote.View,
@@ -426,20 +434,33 @@ func (hc *HotStuffCoordinator) processProposalInternal(proposal *messages.Propos
 			return fmt.Errorf("failed to sign prepare vote: %w", err)
 		}
 		vote.Signature = signature
-		// Line 53-54: Send vote to leader (only if not leader)
-		if !isLeader {
+		// Line 53-54: Send vote to leader (validators send over network, leader processes locally)  
+		currentLeader := hc.getLeader(hc.currentView)
+		if hc.nodeID != currentLeader {
+			// Validator: Send vote over network to leader
 			voteMsg := messages.NewVoteMsg(vote, hc.nodeID)
-			if err := hc.network.Send(hc.ctx, hc.getLeader(hc.currentView), voteMsg); err != nil {
+			if err := hc.network.Send(hc.ctx, currentLeader, voteMsg); err != nil {
 				return fmt.Errorf("failed to send vote: %w", err)
 			}
 			
-			// Record prepare vote sent event
+			// Record prepare vote sent event only for validators (not leader)
 			if hc.eventTracer != nil {
 				hc.eventTracer.RecordEvent(uint16(hc.nodeID), events.EventPrepareVoteSent, events.EventPayload{
 					"block_hash": vote.BlockHash,
 					"view":       vote.View,
 					"phase":      vote.Phase,
-					"leader":     hc.getLeader(hc.currentView),
+					"leader":     currentLeader,
+				})
+			}
+		} else {
+			// Leader: Don't send to self over network, will process vote directly below
+			// Record prepare vote sent event for leader (conceptual - leader "sends" to itself)
+			if hc.eventTracer != nil {
+				hc.eventTracer.RecordEvent(uint16(hc.nodeID), events.EventPrepareVoteSent, events.EventPayload{
+					"block_hash": vote.BlockHash,
+					"view":       vote.View,
+					"phase":      vote.Phase,
+					"leader":     currentLeader,
 				})
 			}
 		}
@@ -455,11 +476,6 @@ func (hc *HotStuffCoordinator) processProposalInternal(proposal *messages.Propos
 			Str("phase", vote.Phase.String()).
 			Uint16("voter", uint16(vote.Voter)).
 			Msg("Vote created and sent")
-	}
-
-	// Start timer for followers when processing proposal
-	if !isLeader {
-		hc.startViewTimer()
 	}
 
 	// Start timer for followers when processing proposal
@@ -676,19 +692,10 @@ func (hc *HotStuffCoordinator) processPreCommitPhase(prepareQC *types.QuorumCert
 		})
 	}
 	
-	// Line 116: Process PrepareQC to update both prepare state AND locked QC
-	// ARCHITECTURAL FIX: Non-pipelined HotStuff locks on PrepareQC per data flow specification
+	// Line 116: Process PrepareQC for prepare state only - DO NOT update lockedQC yet
+	// SAFETY FIX: lockedQC update moved to Commit phase per HotStuff Algorithm 2 line 25
 	if err := hc.consensus.ProcessQC(prepareQC); err != nil {
 		return fmt.Errorf("failed to process PrepareQC: %w", err)
-	}
-	
-	// Record locked QC update event (validators only, not leader)
-	if hc.eventTracer != nil && !hc.isLeader(hc.currentView) {
-		hc.eventTracer.RecordEvent(uint16(hc.nodeID), events.EventLockedQCUpdated, events.EventPayload{
-			"block_hash": prepareQC.BlockHash,
-			"view":       prepareQC.View,
-			"phase":      prepareQC.Phase,
-		})
 	}
 	
 	// Line 117-118: Sign pre-commit vote
@@ -778,6 +785,21 @@ func (hc *HotStuffCoordinator) processCommitPhase(preCommitQC *types.QuorumCerti
 			"view":        preCommitQC.View,
 			"phase":       preCommitQC.Phase,
 			"vote_count":  len(preCommitQC.Votes),
+		})
+	}
+	
+	// SAFETY FIX: Update lockedQC here (HotStuff Algorithm 2 line 25)
+	// lockedQC ← m.justify (where m.justify is the PreCommitQC)
+	if err := hc.consensus.UpdateLockedQC(preCommitQC); err != nil {
+		return fmt.Errorf("failed to update lockedQC: %w", err)
+	}
+	
+	// Record locked QC update event (validators only, not leader)
+	if hc.eventTracer != nil && !hc.isLeader(hc.currentView) {
+		hc.eventTracer.RecordEvent(uint16(hc.nodeID), events.EventLockedQCUpdated, events.EventPayload{
+			"block_hash": preCommitQC.BlockHash,
+			"view":       preCommitQC.View,
+			"phase":      preCommitQC.Phase,
 		})
 	}
 	
@@ -1263,11 +1285,17 @@ func (hc *HotStuffCoordinator) startViewTimer() {
 	})
 	hc.timeoutStarted = true
 	
-	// Record view timer started event - ONLY emit for leader during NewView collection
-	hc.emitLeaderEvent(events.EventViewTimerStarted, events.EventPayload{
-		"view":    hc.currentView,
-		"timeout": timeout.String(),
-	})
+    // Record view timer started event - ALL nodes emit this event since all validators participate in timeout detection
+    payload := events.EventPayload{
+        "view":       hc.currentView,
+        "timeout":    timeout.String(),
+        "timeout_ms": timeout.Milliseconds(),
+    }
+    // Indicate if capped at max timeout
+    if timeout >= hc.config.MaxTimeout {
+        payload["capped_at_max"] = true
+    }
+    hc.emitAllNodesEvent(events.EventViewTimerStarted, payload)
 	
 	fmt.Printf("   [Node %d] ⏰ Started view timer for view %d (timeout: %v)\n", 
 		hc.nodeID, hc.currentView, timeout)
@@ -1291,6 +1319,14 @@ func (hc *HotStuffCoordinator) onViewTimeout() {
 		return // Timer was cancelled
 	}
 	
+    // Emit timeout detection events - ALL nodes should emit these
+    hc.emitAllNodesEvent(events.EventViewTimeout, events.EventPayload{
+        "view": hc.currentView,
+    })
+    hc.emitAllNodesEvent(events.EventViewTimeoutDetected, events.EventPayload{
+        "view": hc.currentView,
+    })
+	
 	fmt.Printf("   [Node %d] ⏰ View %d timeout detected, initiating view change\n", 
 		hc.nodeID, hc.currentView)
 	
@@ -1313,10 +1349,23 @@ func (hc *HotStuffCoordinator) broadcastTimeoutMessage() error {
 	
 	timeoutMsg := messages.NewTimeoutMsg(hc.currentView, hc.highestQC, hc.nodeID, signature)
 	
-	// Broadcast timeout to all validators
-	if err := hc.network.Broadcast(hc.ctx, timeoutMsg); err != nil {
-		return fmt.Errorf("failed to broadcast timeout: %w", err)
-	}
+    // Broadcast timeout to all validators
+    if err := hc.network.Broadcast(hc.ctx, timeoutMsg); err != nil {
+        return fmt.Errorf("failed to broadcast timeout: %w", err)
+    }
+
+    // Record timeout message sent (each node sends its own timeout)
+    if hc.eventTracer != nil {
+        payload := events.EventPayload{
+            "view":      hc.currentView,
+            "sender":    hc.nodeID,
+        }
+        if hc.highestQC != nil {
+            payload["highest_qc_view"] = hc.highestQC.View
+            payload["highest_qc_phase"] = hc.highestQC.Phase
+        }
+        hc.eventTracer.RecordEvent(uint16(hc.nodeID), events.EventTimeoutMessageSent, payload)
+    }
 	
 	// Process our own timeout message
 	if err := hc.processTimeoutMessage(timeoutMsg); err != nil {
@@ -1336,16 +1385,26 @@ func (hc *HotStuffCoordinator) ProcessTimeoutMessage(msg *messages.TimeoutMsg) e
 
 // processTimeoutMessage handles timeout message processing
 func (hc *HotStuffCoordinator) processTimeoutMessage(msg *messages.TimeoutMsg) error {
-	// Validate timeout message
-	if err := msg.Validate(hc.config); err != nil {
-		return fmt.Errorf("invalid timeout message: %w", err)
-	}
-	
-	// Verify signature
-	timeoutData := fmt.Sprintf("timeout:%d:%d", msg.ViewNumber, msg.SenderID)
-	if err := hc.crypto.Verify([]byte(timeoutData), msg.Signature, msg.SenderID); err != nil {
-		return fmt.Errorf("invalid timeout signature: %w", err)
-	}
+    // Validate timeout message
+    if err := msg.Validate(hc.config); err != nil {
+        return fmt.Errorf("invalid timeout message: %w", err)
+    }
+
+    // Verify signature
+    timeoutData := fmt.Sprintf("timeout:%d:%d", msg.ViewNumber, msg.SenderID)
+    if err := hc.crypto.Verify([]byte(timeoutData), msg.Signature, msg.SenderID); err != nil {
+        return fmt.Errorf("invalid timeout signature: %w", err)
+    }
+
+    // Record timeout message received and validated
+    hc.emitAllNodesEvent(events.EventTimeoutMessageReceived, events.EventPayload{
+        "view":   msg.ViewNumber,
+        "sender": msg.SenderID,
+    })
+    hc.emitAllNodesEvent(events.EventTimeoutMessageValidated, events.EventPayload{
+        "view":   msg.ViewNumber,
+        "sender": msg.SenderID,
+    })
 	
 	// Store timeout message
 	if hc.timeoutMessages[msg.ViewNumber] == nil {
@@ -1363,7 +1422,9 @@ func (hc *HotStuffCoordinator) processTimeoutMessage(msg *messages.TimeoutMsg) e
 		len(hc.timeoutMessages[msg.ViewNumber]), hc.config.QuorumThreshold())
 	
 	// Check if we have enough timeouts to trigger view change (≥2f+1)
-	if len(hc.timeoutMessages[msg.ViewNumber]) >= hc.config.QuorumThreshold() {
+	// CRITICAL FIX: Only trigger a view change if the timeout messages are for the *current* view.
+	// This prevents late messages from a previous view change attempt from causing a cascade of spurious view changes.
+	if msg.ViewNumber == hc.currentView && len(hc.timeoutMessages[msg.ViewNumber]) >= hc.config.QuorumThreshold() {
 		return hc.triggerViewChange(msg.ViewNumber)
 	}
 	
@@ -1377,53 +1438,146 @@ func (hc *HotStuffCoordinator) triggerViewChange(timeoutView types.ViewNumber) e
 		return nil // Already advanced
 	}
 	
+	// Emit view change started event - ALL nodes should emit this
+	hc.emitAllNodesEvent(events.EventViewChangeStarted, events.EventPayload{
+		"old_view": hc.currentView,
+		"new_view": hc.currentView + 1,
+	})
+	
 	fmt.Printf("   [Node %d] 🔄 Triggering view change from %d to %d\n", 
 		hc.nodeID, hc.currentView, hc.currentView+1)
 	
-	// Stop current view timer
-	hc.stopViewTimer()
+	// Debug timing
+	fmt.Printf("   [Node %d] ⏱️ View transition started at %v\n", hc.nodeID, time.Now().Format("15:04:05.000"))
 	
-	// Advance to next view
-	nextView := hc.currentView + 1
-	hc.advanceView()
-	
-	// If we're the new leader, broadcast NewView message
-	if hc.isLeader(nextView) {
-		return hc.broadcastNewViewMessage(nextView)
-	}
-	
-	// Start timer for new view
-	hc.startViewTimer()
-	return nil
-}
+    // Atomic view transition to prevent race conditions
+    hc.performAtomicViewTransition()
 
-// broadcastNewViewMessage creates and broadcasts NewView message (protocol line 185-186)
-func (hc *HotStuffCoordinator) broadcastNewViewMessage(view types.ViewNumber) error {
-	// Collect timeout certificates for justification
+    // Protocol line 537: "[Pacemaker] Enter synchronized view"
+	// Atomic view transition already ensures synchronization
+	
+    // Protocol line 538: "[Pacemaker] Broadcast(NewViewMsg, view, highestQC)"
+    // ALL nodes (including new leader) send NewView messages to the new leader
+    currentView := hc.currentView
+    newLeader := hc.getLeader(currentView)
+
+    // Emit leader election for the new view (all nodes record this)
+    hc.emitAllNodesEvent(events.EventLeaderElected, events.EventPayload{
+        "view":   currentView,
+        "leader": newLeader,
+    })
+
+    // Emit new_view_started for the new view (after leader_elected and timer start in performAtomicViewTransition)
+    hc.emitAllNodesEvent(events.EventNewViewStarted, events.EventPayload{
+        "view":   currentView,
+        "leader": newLeader,
+    })
+	
+	// Protocol line 538: "Broadcast(NewViewMsg, view, highestQC)" - ALL nodes broadcast NewView
+	// Collect timeout certificates from previous view to justify view change
 	var timeoutCerts []messages.TimeoutMsg
-	if timeouts := hc.timeoutMessages[view-1]; timeouts != nil {
+	if timeouts := hc.timeoutMessages[currentView-1]; timeouts != nil {
 		for _, timeout := range timeouts {
 			timeoutCerts = append(timeoutCerts, *timeout)
-			if len(timeoutCerts) >= hc.config.QuorumThreshold() {
-				break // Take exactly 2f+1 timeouts
-			}
 		}
 	}
 	
-	// Create NewView message
-	newViewMsg := messages.NewNewViewMsg(view, hc.highestQC, timeoutCerts, hc.nodeID)
+	// Create and broadcast NewView message (protocol line 538)
+	signature := []byte("placeholder_newview_signature") // TODO: Implement proper cryptographic signing
+	newViewMsg := messages.NewNewViewMsg(currentView, hc.highestQC, timeoutCerts, hc.nodeID, signature)
 	
-	// Broadcast to all validators
+	// ALL nodes broadcast NewView as per protocol line 538
 	if err := hc.network.Broadcast(hc.ctx, newViewMsg); err != nil {
-		return fmt.Errorf("failed to broadcast NewView: %w", err)
+		fmt.Printf("   [Node %d] ❌ Failed to broadcast NewView: %v\n", hc.nodeID, err)
+		return err
 	}
 	
-	fmt.Printf("   [Node %d] 📡 Broadcast NewView for view %d (leader)\n", hc.nodeID, view)
+	fmt.Printf("   [Node %d] 📡 Broadcast NewView for view %d\n", hc.nodeID, currentView)
 	
-	// Start timer for new view as leader
-	hc.startViewTimer()
+	if newLeader != hc.nodeID {
+		// We are a validator - NewView broadcast is complete
+		fmt.Printf("   [Node %d] ✅ NewView broadcast complete for view %d (validator)\n", 
+			hc.nodeID, currentView)
+	} else {
+		// We are the new leader - prepare to collect NewView messages
+		fmt.Printf("   [Node %d] 👑 Became leader for view %d, preparing for NewView collection\n", 
+			hc.nodeID, currentView)
+		
+		// Initialize NewView collection state
+		if hc.newViewMessages[currentView] == nil {
+			hc.newViewMessages[currentView] = make(map[types.NodeID]*messages.NewViewMsg)
+		}
+		
+		// Include our own NewView message in the collection since we just broadcast it
+		hc.newViewMessages[currentView][hc.nodeID] = newViewMsg
+		fmt.Printf("   [Node %d] 📝 Added own NewView message to collection (1/%d)\n", 
+			hc.nodeID, hc.config.QuorumThreshold())
+		
+		// As the new leader, start the proposal process after NewView broadcast
+		// Use adaptive synchronization based on network conditions instead of fixed grace period
+		go func() {
+			// Adaptive synchronization: Scale with view timeout to handle varying network conditions
+			// Protocol specification: Allow sufficient time for distributed view transitions
+			baseTimeout := hc.config.GetTimeoutForView(currentView)
+			adaptiveGracePeriod := baseTimeout / 10 // 10% of view timeout for synchronization
+			
+			// Minimum bound for fast networks, maximum bound for slow networks
+			minGrace := 100 * time.Millisecond  // Fast datacenter networks
+			maxGrace := 2 * time.Second         // Slow/geographic networks
+			
+			if adaptiveGracePeriod < minGrace {
+				adaptiveGracePeriod = minGrace
+			} else if adaptiveGracePeriod > maxGrace {
+				adaptiveGracePeriod = maxGrace
+			}
+			
+			fmt.Printf("   [Node %d] ⏳ Adaptive synchronization period: %v (base timeout: %v)\n", 
+				hc.nodeID, adaptiveGracePeriod, baseTimeout)
+			
+			select {
+			case <-time.After(adaptiveGracePeriod):
+				// Adaptive synchronization period elapsed, start collection
+			case <-hc.ctx.Done():
+				fmt.Printf("   [Node %d] ❌ Context cancelled during grace period\n", hc.nodeID)
+				return
+			}
+			
+			fmt.Printf("   [Node %d] 🚀 Starting ProposeBlock after grace period\n", hc.nodeID)
+			recoveryPayload := fmt.Sprintf("recovery_block_view_%d", currentView)
+			if err := hc.ProposeBlock([]byte(recoveryPayload)); err != nil {
+				fmt.Printf("   [Node %d] ❌ Failed to propose recovery block for view %d: %v\n", 
+					hc.nodeID, currentView, err)
+			} else {
+				fmt.Printf("   [Node %d] ✅ Successfully proposed recovery block for view %d\n", 
+					hc.nodeID, currentView)
+			}
+		}()
+	}
+	
 	return nil
 }
+
+// performAtomicViewTransition handles atomic view advancement to prevent race conditions
+func (hc *HotStuffCoordinator) performAtomicViewTransition() {
+	// Protocol requires atomic transition to prevent timer conflicts and message ordering races
+	
+	// Step 1: Stop current view timer atomically
+	hc.stopViewTimer()
+	
+	// Step 2: Advance to next view (protocol line 522: "[Pacemaker] Advance to next view")
+	nextView := hc.currentView + 1
+	hc.advanceView()
+	
+	// Step 3: Protocol line 524: "[Pacemaker] Wait for view synchronization"
+	// Start timer for new view immediately after advancing to prevent timing gaps
+	hc.startViewTimer()
+	
+	fmt.Printf("   [Node %d] ✅ Atomic view transition completed: %d -> %d\n", 
+		hc.nodeID, nextView-1, hc.currentView)
+}
+
+// broadcastNewViewMessage creates and broadcasts NewView message (protocol line 185-186)
+// Removed obsolete broadcastNewViewMessage: leader announcement is not part of the diagram flow.
 
 // ProcessNewViewMessage processes received NewView messages (protocol line 187)
 func (hc *HotStuffCoordinator) ProcessNewViewMessage(msg *messages.NewViewMsg) error {
@@ -1433,29 +1587,44 @@ func (hc *HotStuffCoordinator) ProcessNewViewMessage(msg *messages.NewViewMsg) e
 }
 
 // processNewViewMessage handles NewView message processing
+// According to protocol line 540-542: All nodes broadcast NewView, leader collects them
 func (hc *HotStuffCoordinator) processNewViewMessage(msg *messages.NewViewMsg) error {
-	// Only leaders should process NewView messages (they collect them)
-	if !hc.isLeader(hc.currentView) {
-		return nil // Validators don't process NewView messages
+	currentLeader := hc.getLeader(msg.ViewNumber)
+	
+	// Validate NewView message first
+	if err := msg.Validate(hc.config); err != nil {
+		return fmt.Errorf("invalid NewView message: %w", err)
+	}
+	
+	// Case 1: We are NOT the leader - ignore other validators' NewView messages
+	// (only the leader needs to collect them)
+	if currentLeader != hc.nodeID {
+		// Advance to the new view if this NewView is for a higher view
+		if msg.ViewNumber > hc.currentView {
+			fmt.Printf("   [Node %d] 📈 Advancing to view %d based on NewView from Node %d\n", 
+				hc.nodeID, msg.ViewNumber, msg.Sender())
+			
+			hc.stopViewTimer()
+			for hc.currentView < msg.ViewNumber {
+				hc.advanceView()
+			}
+			hc.startViewTimer()
+		}
+		
+		// Validators don't process NewView messages further
+		return nil
 	}
 
+	// Case 2: We ARE the leader for this view - collect NewView messages from all nodes
+	// Protocol line 542: "Collect NewViewMsg (≥2f+1)"
+	
 	// Emit received event - LEADER ROLE EVENT
 	hc.emitLeaderEvent(events.EventNewViewMessageReceived, events.EventPayload{
 		"view":   msg.ViewNumber,
 		"sender": msg.Sender(),
 	})
 
-	// Validate NewView message
-	if err := msg.Validate(hc.config); err != nil {
-		return fmt.Errorf("invalid NewView message: %w", err)
-	}
-	
-	// Verify this is from a valid validator (not the leader itself)
-	if msg.Sender() == hc.nodeID {
-		return fmt.Errorf("leader should not receive NewView from itself: %d", msg.Sender())
-	}
-	
-	// Verify sender is a valid validator
+	// Verify this is from a valid validator (including ourselves - leaders also broadcast NewView)
 	isValidValidator := false
 	for _, validator := range hc.validators {
 		if validator == msg.Sender() {
@@ -1533,9 +1702,28 @@ func (hc *HotStuffCoordinator) collectNewViewMessages() error {
 	fmt.Printf("   [Node %d] 📞 Collecting NewView messages (%d/%d required)\n", 
 		hc.nodeID, 0, quorumThreshold)
 	
-	// Wait for NewView messages with timeout
-	timeout := hc.config.GetTimeoutForView(hc.currentView)
+	// Wait for NewView messages with timeout (protocol line 168: "2 * current_view_timeout")
+	baseTimeout := hc.config.GetTimeoutForView(hc.currentView)
+	timeout := 2 * baseTimeout // Protocol specifies 2x timeout for NewView collection
 	deadline := time.Now().Add(timeout)
+	
+	fmt.Printf("   [Node %d] ⏰ NewView collection timeout: %v (2x base: %v)\n", 
+		hc.nodeID, timeout, baseTimeout)
+	
+	// Debug: show current NewView messages at start
+	initialCount := 0
+	if hc.newViewMessages[hc.currentView] != nil {
+		initialCount = len(hc.newViewMessages[hc.currentView])
+		fmt.Printf("   [Node %d] 📊 Starting with %d NewView messages already received\n", 
+			hc.nodeID, initialCount)
+		for senderID := range hc.newViewMessages[hc.currentView] {
+			fmt.Printf("     - From Node %d\n", senderID)
+		}
+	}
+	
+	// Wait for NewView messages with exponential backoff to reduce CPU usage
+	checkInterval := 50 * time.Millisecond  // Start with 50ms intervals
+	maxInterval := 500 * time.Millisecond   // Cap at 500ms intervals
 	
 	for time.Now().Before(deadline) {
 		// Check if we have sufficient NewView messages
@@ -1551,17 +1739,52 @@ func (hc *HotStuffCoordinator) collectNewViewMessages() error {
 			}
 		}
 		
-		// Brief sleep to avoid busy waiting
-		time.Sleep(10 * time.Millisecond)
+		// Use timeout-based waiting instead of busy polling
+		select {
+		case <-time.After(checkInterval):
+			// Continue to next check
+		case <-hc.ctx.Done():
+			return fmt.Errorf("context cancelled during NewView collection")
+		}
+		
+		// Exponential backoff: increase check interval to reduce CPU usage
+		checkInterval = checkInterval * 2
+		if checkInterval > maxInterval {
+			checkInterval = maxInterval
+		}
 	}
 	
-	// Timeout reached without sufficient NewView messages
+	// Timeout reached without sufficient NewView messages (protocol lines 184-191)
 	receivedCount := 0
 	if hc.newViewMessages[hc.currentView] != nil {
 		receivedCount = len(hc.newViewMessages[hc.currentView])
 	}
 	
-	return fmt.Errorf("timeout waiting for NewView messages: received %d/%d", 
+	fmt.Printf("   [Node %d] ⏰ NewView collection timeout - cannot propose in view %d\n", 
+		hc.nodeID, hc.currentView)
+	
+	// Protocol line 186: "Leader timeout - cannot propose in this view"
+	// Protocol line 187-189: Sign and broadcast timeout message
+	timeoutMsg := messages.NewTimeoutMsg(hc.currentView, hc.highestQC, hc.nodeID, []byte("newview_timeout"))
+	
+	// Store our timeout message
+	if hc.timeoutMessages[hc.currentView] == nil {
+		hc.timeoutMessages[hc.currentView] = make(map[types.NodeID]*messages.TimeoutMsg)
+	}
+	hc.timeoutMessages[hc.currentView][hc.nodeID] = timeoutMsg
+	
+	// Broadcast timeout message (protocol line 189)
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	
+	if err := hc.network.Broadcast(ctx, timeoutMsg); err != nil {
+		fmt.Printf("   [Node %d] ❌ Failed to broadcast timeout message: %v\n", hc.nodeID, err)
+	} else {
+		fmt.Printf("   [Node %d] 📢 Broadcasted timeout message for view %d\n", hc.nodeID, hc.currentView)
+	}
+	
+	// Protocol line 190-191: This will trigger view change
+	return fmt.Errorf("insufficient NewView messages: received %d/%d, triggering view change", 
 		receivedCount, quorumThreshold)
 }
 
@@ -1644,13 +1867,22 @@ func (hc *HotStuffCoordinator) processReceivedNewViewMessagesForView0() error {
 	// Wait for NewView messages to arrive from the message processor
 	// They're sent by nodes in coordinator.Start() and processed asynchronously
 	maxWait := 500 * time.Millisecond
-	startTime := time.Now()
-	for time.Since(startTime) < maxWait {
+	deadline := time.Now().Add(maxWait)
+	checkInterval := 50 * time.Millisecond
+	
+	for time.Now().Before(deadline) {
 		newViewMsgs = hc.newViewMessages[0] // refresh
 		if newViewMsgs != nil && len(newViewMsgs) > 0 {
 			break // Messages arrived
 		}
-		time.Sleep(10 * time.Millisecond) // Brief sleep to avoid busy waiting
+		
+		// Use timeout-based waiting instead of busy polling
+		select {
+		case <-time.After(checkInterval):
+			// Continue to next check
+		case <-hc.ctx.Done():
+			break
+		}
 	}
 
 	if newViewMsgs != nil && len(newViewMsgs) > 0 {
@@ -1708,9 +1940,6 @@ func (hc *HotStuffCoordinator) processReceivedNewViewMessagesForView0() error {
 
 // sendNewViewMessageToLeader sends a NewView message to the current leader
 func (hc *HotStuffCoordinator) sendNewViewMessageToLeader(view types.ViewNumber) {
-	// Brief delay to ensure network is ready
-	time.Sleep(50 * time.Millisecond)
-	
 	hc.mu.Lock()
 	defer hc.mu.Unlock()
 	
@@ -1720,7 +1949,9 @@ func (hc *HotStuffCoordinator) sendNewViewMessageToLeader(view types.ViewNumber)
 	}
 
 	// Create NewView message with our highest QC
-	newViewMsg := messages.NewNewViewMsg(view, hc.highestQC, []messages.TimeoutMsg{}, hc.nodeID)
+	// TODO: Implement proper cryptographic signing
+	signature := []byte("placeholder_signature")
+	newViewMsg := messages.NewNewViewMsg(view, hc.highestQC, []messages.TimeoutMsg{}, hc.nodeID, signature)
 	
 	// Emit sent event
 	if hc.eventTracer != nil {

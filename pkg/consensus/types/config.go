@@ -2,6 +2,7 @@ package types
 
 import (
 	"fmt"
+	"math"
 	"time"
 )
 
@@ -229,8 +230,8 @@ func (c *ConsensusConfig) GetTimeoutForView(view ViewNumber) time.Duration {
 		multiplier = 2.0 // Default fallback
 	}
 	
-	// Use floating point calculation to avoid overflow
-	timeout := float64(c.BaseTimeout) * powFloat(multiplier, float64(view))
+	// Use math.Pow for accurate calculation
+	timeout := float64(c.BaseTimeout) * math.Pow(multiplier, float64(view))
 	
 	// Cap at maximum timeout
 	if time.Duration(timeout) > c.MaxTimeout {

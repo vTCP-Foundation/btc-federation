@@ -15,6 +15,9 @@ type SafetyRules struct {
 	// prepareQC is the highest prepare quorum certificate seen
 	prepareQC *types.QuorumCertificate
 	
+	// preCommitQC is the highest pre-commit quorum certificate seen
+	preCommitQC *types.QuorumCertificate
+	
 	// lastVotedView tracks the last view in which this node voted to prevent double voting
 	lastVotedView types.ViewNumber
 	
@@ -114,6 +117,23 @@ func (sr *SafetyRules) UpdatePrepareQC(qc *types.QuorumCertificate) error {
 	if sr.prepareQC == nil || qc.View >= sr.prepareQC.View {
 		sr.prepareQC = qc
 	}
+	
+	return nil
+}
+
+// UpdatePreCommitQC updates the pre-commit quorum certificate when we receive a precommit QC.
+// This is tracked for protocol completeness but does NOT update lockedQC.
+func (sr *SafetyRules) UpdatePreCommitQC(qc *types.QuorumCertificate) error {
+	if qc == nil {
+		return fmt.Errorf("quorum certificate cannot be nil")
+	}
+	
+	if qc.Phase != types.PhasePreCommit {
+		return fmt.Errorf("expected pre-commit QC, got %s", qc.Phase)
+	}
+	
+	// Store for tracking purposes (no safety rule implications)
+	sr.preCommitQC = qc
 	
 	return nil
 }

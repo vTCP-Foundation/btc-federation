@@ -8,7 +8,7 @@ import (
 	"fmt"
 )
 
-func CreateTestNetwork(nodeCount int, tracer events.EventTracer, enableMessageLogging bool) (map[types.NodeID]*integration.Node, *integration.NetworkManager, error) {
+func CreateTestNetwork(nodeCount int, tracer events.EventTracer, enableMessageLogging bool) (map[types.NodeID]*integration.Node, *integration.NetworkManager, *types.ConsensusConfig, error) {
 	// Create consensus config
 	publicKeys := make([]types.PublicKey, nodeCount)
 	for i := 0; i < nodeCount; i++ {
@@ -17,7 +17,7 @@ func CreateTestNetwork(nodeCount int, tracer events.EventTracer, enableMessageLo
 
 	consensusConfig, err := types.NewConsensusConfig(publicKeys)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create consensus config: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to create consensus config: %w", err)
 	}
 
 	// Create validators list
@@ -85,7 +85,7 @@ func CreateTestNetwork(nodeCount int, tracer events.EventTracer, enableMessageLo
 
 		node, err := integration.NewNode(config, mockNetworks[nodeID], mockStorages[nodeID], mockCryptos[nodeID])
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to create node %d: %w", nodeID, err)
+			return nil, nil, nil, fmt.Errorf("failed to create node %d: %w", nodeID, err)
 		}
 
 		nodes[nodeID] = node
@@ -94,7 +94,7 @@ func CreateTestNetwork(nodeCount int, tracer events.EventTracer, enableMessageLo
 	// Start all nodes
 	for nodeID, node := range nodes {
 		if err := node.Start(); err != nil {
-			return nil, nil, fmt.Errorf("failed to start node %d: %w", nodeID, err)
+			return nil, nil, nil, fmt.Errorf("failed to start node %d: %w", nodeID, err)
 		}
 	}
 
@@ -109,5 +109,5 @@ func CreateTestNetwork(nodeCount int, tracer events.EventTracer, enableMessageLo
 	// Start message processing
 	networkManager.StartAll()
 
-	return nodes, networkManager, nil
+	return nodes, networkManager, consensusConfig, nil
 }
