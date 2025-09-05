@@ -196,4 +196,13 @@ btc-logs:
 		tail -10 .btc/miner.log; \
 	else \
 		echo "No miner log file found"; \
-	fi 
+	fi
+
+# Go testing targets
+test:
+	@echo "Running all Go tests..."
+	@go test -timeout 5m ./...
+
+test-consensus:
+	@echo "Running consensus tests with default timeout..."
+	@go test -v -timeout 5m ./tests/consensus/...
