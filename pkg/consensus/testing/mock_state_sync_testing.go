@@ -11,7 +11,7 @@ import (
 )
 
 // MockStateSync provides state synchronization for testing.
-// It copies storage state directly and uses the StateRecoverable interface
+// It copies storage state directly and uses the CoordinatorTestable interface
 // to update coordinator state (only available in test builds).
 type MockStateSync struct {
 	nodes    map[types.NodeID]*integration.Node
@@ -75,16 +75,16 @@ func (m *MockStateSync) SyncNode(behindNodeID types.NodeID, sourceNodeIDs []type
 		return fmt.Errorf("failed to import storage state: %w", err)
 	}
 
-	// Get coordinator as StateRecoverable interface
+	// Get coordinator as CoordinatorTestable interface
 	targetNode, ok := m.nodes[behindNodeID]
 	if !ok {
 		return fmt.Errorf("target node not found: %d", behindNodeID)
 	}
 
 	targetCoord := targetNode.GetCoordinator()
-	recoverable, ok := interface{}(targetCoord).(integration.StateRecoverable)
+	testable, ok := interface{}(targetCoord).(integration.CoordinatorTestable)
 	if !ok {
-		return fmt.Errorf("coordinator does not implement StateRecoverable (missing build tag?)")
+		return fmt.Errorf("coordinator does not implement CoordinatorTestable (missing build tag?)")
 	}
 
 	// Get state from source
@@ -94,7 +94,7 @@ func (m *MockStateSync) SyncNode(behindNodeID types.NodeID, sourceNodeIDs []type
 	lockedQC := sourceNode.GetConsensus().GetLockedQC()
 
 	// Update coordinator state via interface
-	return recoverable.ForceRecoverState(bestView, highestQC, lockedQC)
+	return testable.ForceRecoverState(bestView, highestQC, lockedQC)
 }
 
 // SyncNodeFromAll synchronizes a node from all other available nodes.

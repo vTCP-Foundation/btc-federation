@@ -4,19 +4,20 @@ package integration
 
 import "btc-federation/pkg/consensus/types"
 
-// StateRecoverable provides test-only state recovery capabilities.
+// CoordinatorTestable provides DANGEROUS test-only state manipulation for HotStuffCoordinator.
 // This interface is implemented by HotStuffCoordinator only when built
-// with the "testing" tag (see coordinator_testing.go).
+// with the "consensus_testing" tag (see coordinator_testing.go).
 //
-// This allows the mock package to perform state synchronization without
-// exposing internal coordinator fields, while ensuring the recovery method
-// is never available in production builds.
-type StateRecoverable interface {
+// WARNING: These methods bypass HotStuff protocol safety rules and must
+// NEVER be used in production code. They exist solely for testing state
+// synchronization scenarios.
+type CoordinatorTestable interface {
 	// ForceRecoverState updates coordinator state to simulate state sync recovery.
 	// It sets the current view, updates highestQC and lockedQC, clears stale vote
 	// collections, and restarts the view timer.
 	//
-	// This method is only available in test builds (//go:build testing).
+	// UNSAFE: Bypasses normal state sync protocol.
+	// Only available in test builds (//go:build consensus_testing).
 	ForceRecoverState(
 		targetView types.ViewNumber,
 		highestQC *types.QuorumCertificate,
