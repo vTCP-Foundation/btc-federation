@@ -3,6 +3,7 @@
 package integration
 
 import (
+	"btc-federation/pkg/consensus/engine"
 	"btc-federation/pkg/consensus/events"
 	"btc-federation/pkg/consensus/messages"
 	"btc-federation/pkg/consensus/types"
@@ -46,6 +47,14 @@ func (hc *HotStuffCoordinator) ForceRecoverState(
 	// The engine's view tracks separately, so we need to sync it
 	for hc.consensus.GetCurrentView() < targetView {
 		hc.consensus.AdvanceView()
+	}
+
+	// CRITICAL: Update lockedQC on engine to preserve safety property
+	// Uses EngineTestable interface to bypass phase validation
+	if lockedQC != nil {
+		if testable, ok := interface{}(hc.consensus).(engine.EngineTestable); ok {
+			testable.ForceSetLockedQC(lockedQC)
+		}
 	}
 
 	// Clear stale vote collections for all blocks
