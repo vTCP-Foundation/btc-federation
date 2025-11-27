@@ -89,6 +89,12 @@ func (bt *BlockTree) GetBlock(hash types.BlockHash) (*types.Block, error) {
 	return block, nil
 }
 
+// HasBlock returns true if a block with the given hash exists in the tree.
+func (bt *BlockTree) HasBlock(hash types.BlockHash) bool {
+	_, exists := bt.blocks[hash]
+	return exists
+}
+
 // GetChildren returns all direct children of the specified block.
 func (bt *BlockTree) GetChildren(hash types.BlockHash) []*types.Block {
 	return bt.children[hash]

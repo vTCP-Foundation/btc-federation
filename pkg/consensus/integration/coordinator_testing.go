@@ -3,6 +3,8 @@
 package integration
 
 import (
+	"fmt"
+
 	"btc-federation/pkg/consensus/engine"
 	"btc-federation/pkg/consensus/events"
 	"btc-federation/pkg/consensus/messages"
@@ -17,10 +19,18 @@ import (
 //   - targetView: The view number to sync to
 //   - highestQC: The highest QC from the source node (may be nil for early views)
 //   - lockedQC: The locked QC from the source node (may be nil)
+//   - blocks: Optional blocks to rebuild block tree (can be nil)
+//
+// CONCURRENCY NOTE: State sync is not fully atomic across storage/engine/coordinator.
+// Storage import (MockStateSync.SyncNode) happens outside coordinator lock, then
+// tree rebuild and QC update happen under coordinator lock. In tests with concurrent
+// message processing, brief inconsistencies may occur. For deterministic tests,
+// pause message processing during recovery or use single-threaded test scenarios.
 func (hc *HotStuffCoordinator) ForceRecoverState(
 	targetView types.ViewNumber,
 	highestQC *types.QuorumCertificate,
 	lockedQC *types.QuorumCertificate,
+	blocks map[types.BlockHash]*types.Block,
 ) error {
 	hc.mu.Lock()
 	defer hc.mu.Unlock()
@@ -37,10 +47,26 @@ func (hc *HotStuffCoordinator) ForceRecoverState(
 			})
 	}
 
-	// Update coordinator view directly
-	hc.currentView = targetView
+	// Step 1: Rebuild block tree from imported blocks FIRST (if provided)
+	if len(blocks) > 0 {
+		if testable, ok := interface{}(hc.consensus).(engine.EngineTestable); ok {
+			if err := testable.ForceRebuildBlockTree(blocks); err != nil {
+				return fmt.Errorf("failed to rebuild block tree: %w", err)
+			}
+		}
+	}
 
-	// Update highestQC
+	// Step 2: Validate QC blocks exist BEFORE touching coordinator state (fail fast)
+	blockTree := hc.consensus.GetBlockTree()
+	if lockedQC != nil && !blockTree.HasBlock(lockedQC.BlockHash) {
+		return fmt.Errorf("lockedQC references block %x not in tree", lockedQC.BlockHash[:8])
+	}
+	if highestQC != nil && !blockTree.HasBlock(highestQC.BlockHash) {
+		return fmt.Errorf("highestQC references block %x not in tree", highestQC.BlockHash[:8])
+	}
+
+	// Step 3: Now safe to update coordinator state
+	hc.currentView = targetView
 	hc.highestQC = highestQC
 
 	// Update engine view by advancing to target
@@ -79,6 +105,7 @@ func (hc *HotStuffCoordinator) ForceRecoverState(
 	hc.currentPhase = types.PhaseNone
 
 	// Stop any existing timer and restart for new view
+	// (timer generation counter prevents stale callbacks)
 	hc.stopViewTimer()
 	hc.startViewTimer()
 

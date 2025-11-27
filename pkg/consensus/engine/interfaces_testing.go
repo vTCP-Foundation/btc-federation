@@ -17,4 +17,10 @@ type EngineTestable interface {
 	// UNSAFE: This bypasses HotStuff protocol safety rules.
 	// Only use for testing state synchronization scenarios.
 	ForceSetLockedQC(qc *types.QuorumCertificate)
+
+	// ForceRebuildBlockTree rebuilds the block tree from imported blocks.
+	// Blocks are added in dependency order (parent must exist before child).
+	// Returns error if any block cannot be added (missing parent chain).
+	// UNSAFE: This bypasses normal block validation. Only use for testing.
+	ForceRebuildBlockTree(blocks map[types.BlockHash]*types.Block) error
 }

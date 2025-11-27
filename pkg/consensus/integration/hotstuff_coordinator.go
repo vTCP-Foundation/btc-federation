@@ -40,6 +40,7 @@ type HotStuffCoordinator struct {
 	// Timeout and view change state
 	viewTimer         *time.Timer
 	timeoutStarted    bool
+	timerGeneration   uint64 // Incremented on each timer start to detect stale callbacks
 	timeoutMessages   map[types.ViewNumber]map[types.NodeID]*messages.TimeoutMsg
 	newViewMessages   map[types.ViewNumber]map[types.NodeID]*messages.NewViewMsg
 	highestQC         *types.QuorumCertificate
@@ -1279,16 +1280,20 @@ func (hc *HotStuffCoordinator) startViewTimer() {
 	if !hc.config.IsTimeoutEnabled() {
 		return // Timeouts disabled in config
 	}
-	
+
 	// Cancel any existing timer
 	hc.stopViewTimer()
-	
+
 	// Calculate timeout for current view: baseTimeout * 2^view (protocol line 178)
 	timeout := hc.config.GetTimeoutForView(hc.currentView)
-	
-	// Start new timer
+
+	// Increment generation to invalidate any in-flight stale callbacks
+	hc.timerGeneration++
+	currentGen := hc.timerGeneration // Capture for closure
+
+	// Start new timer with generation-aware callback
 	hc.viewTimer = time.AfterFunc(timeout, func() {
-		hc.onViewTimeout()
+		hc.onViewTimeoutWithGeneration(currentGen)
 	})
 	hc.timeoutStarted = true
 	
@@ -1317,31 +1322,39 @@ func (hc *HotStuffCoordinator) stopViewTimer() {
 	hc.timeoutStarted = false
 }
 
-// onViewTimeout handles view timeout (protocol lines 177-188)
-func (hc *HotStuffCoordinator) onViewTimeout() {
+// onViewTimeoutWithGeneration handles view timeout with stale callback detection
+func (hc *HotStuffCoordinator) onViewTimeoutWithGeneration(generation uint64) {
 	hc.mu.Lock()
 	defer hc.mu.Unlock()
-	
-	if !hc.timeoutStarted {
-		return // Timer was cancelled
+
+	// Stale callback check - generation must match current
+	if generation != hc.timerGeneration || !hc.timeoutStarted {
+		return // Timer was cancelled or restarted
 	}
-	
-    // Emit timeout detection events - ALL nodes should emit these
-    hc.emitAllNodesEvent(events.EventViewTimeout, events.EventPayload{
-        "view": hc.currentView,
-    })
-    hc.emitAllNodesEvent(events.EventViewTimeoutDetected, events.EventPayload{
-        "view": hc.currentView,
-    })
-	
-	fmt.Printf("   [Node %d] ⏰ View %d timeout detected, initiating view change\n", 
+
+	// Delegate to shared timeout handling logic
+	hc.handleViewTimeoutLocked()
+}
+
+// handleViewTimeoutLocked handles view timeout (protocol lines 177-188)
+// Called with mu held
+func (hc *HotStuffCoordinator) handleViewTimeoutLocked() {
+	// Emit timeout detection events - ALL nodes should emit these
+	hc.emitAllNodesEvent(events.EventViewTimeout, events.EventPayload{
+		"view": hc.currentView,
+	})
+	hc.emitAllNodesEvent(events.EventViewTimeoutDetected, events.EventPayload{
+		"view": hc.currentView,
+	})
+
+	fmt.Printf("   [Node %d] ⏰ View %d timeout detected, initiating view change\n",
 		hc.nodeID, hc.currentView)
-	
+
 	// Protocol line 179-182: Sign and broadcast timeout message
 	if err := hc.broadcastTimeoutMessage(); err != nil {
 		fmt.Printf("   [Node %d] ❌ Failed to broadcast timeout: %v\n", hc.nodeID, err)
 	}
-	
+
 	hc.timeoutStarted = false
 }
 

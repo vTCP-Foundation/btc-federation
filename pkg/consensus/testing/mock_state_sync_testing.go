@@ -93,8 +93,8 @@ func (m *MockStateSync) SyncNode(behindNodeID types.NodeID, sourceNodeIDs []type
 	highestQC := sourceCoord.GetHighestQC()
 	lockedQC := sourceNode.GetConsensus().GetLockedQC()
 
-	// Update coordinator state via interface
-	return testable.ForceRecoverState(bestView, highestQC, lockedQC)
+	// Update coordinator state via interface - pass blocks for tree rebuild
+	return testable.ForceRecoverState(bestView, highestQC, lockedQC, blocks)
 }
 
 // SyncNodeFromAll synchronizes a node from all other available nodes.

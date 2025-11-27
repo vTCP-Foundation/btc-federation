@@ -369,3 +369,70 @@ type StorageStats struct {
 	WriteCount  uint64
 	ReadCount   uint64
 }
+
+// GetAllBlocks returns deep copies of all stored blocks.
+// This is used for state synchronization in tests.
+// Returns deep copies to prevent cross-node mutation leaks.
+func (ms *MockStorage) GetAllBlocks() map[types.BlockHash]*types.Block {
+	ms.mu.RLock()
+	defer ms.mu.RUnlock()
+
+	result := make(map[types.BlockHash]*types.Block, len(ms.blocks))
+	for hash, block := range ms.blocks {
+		// Deep copy to prevent cross-node mutation
+		blockCopy := *block
+		result[hash] = &blockCopy
+	}
+	return result
+}
+
+// GetAllQCs returns deep copies of all stored quorum certificates.
+// This is used for state synchronization in tests.
+// Returns deep copies to prevent cross-node mutation leaks.
+func (ms *MockStorage) GetAllQCs() map[string]*types.QuorumCertificate {
+	ms.mu.RLock()
+	defer ms.mu.RUnlock()
+
+	result := make(map[string]*types.QuorumCertificate, len(ms.qcs))
+	for key, qc := range ms.qcs {
+		// Deep copy to prevent cross-node mutation
+		qcCopy := *qc
+		// Deep copy slices
+		if qc.Votes != nil {
+			qcCopy.Votes = make([]types.Vote, len(qc.Votes))
+			copy(qcCopy.Votes, qc.Votes)
+		}
+		if qc.VoterBitmap != nil {
+			qcCopy.VoterBitmap = make([]byte, len(qc.VoterBitmap))
+			copy(qcCopy.VoterBitmap, qc.VoterBitmap)
+		}
+		result[key] = &qcCopy
+	}
+	return result
+}
+
+// ImportState imports blocks and QCs from another storage.
+// This is used for state synchronization in tests.
+// For blocks: always imports (blocks are immutable by hash).
+// For QCs: overwrites if incoming QC has higher view (newer data wins).
+func (ms *MockStorage) ImportState(blocks map[types.BlockHash]*types.Block, qcs map[string]*types.QuorumCertificate) error {
+	ms.mu.Lock()
+	defer ms.mu.Unlock()
+
+	// Import blocks (blocks are immutable - same hash = same content)
+	for hash, block := range blocks {
+		if _, exists := ms.blocks[hash]; !exists {
+			ms.blocks[hash] = block
+		}
+	}
+
+	// Import QCs (overwrite if incoming has higher view - newer data wins)
+	for key, qc := range qcs {
+		existing, exists := ms.qcs[key]
+		if !exists || qc.View > existing.View {
+			ms.qcs[key] = qc
+		}
+	}
+
+	return nil
+}
