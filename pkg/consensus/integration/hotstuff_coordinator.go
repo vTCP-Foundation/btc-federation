@@ -596,7 +596,7 @@ func (hc *HotStuffCoordinator) processVoteInternalWithAllEvents(vote *types.Vote
 	votes := voteMap[vote.BlockHash]
 	
 	// Line 80-81: Check vote threshold (≥2f+1)
-	requiredVotes := (len(hc.validators)*2)/3 + 1 // 2f+1
+	requiredVotes := hc.config.QuorumThreshold()
 	if len(votes) >= requiredVotes {
 		// Check if QC already formed for this block+phase (idempotent)
 		var existingQC *types.QuorumCertificate
@@ -888,7 +888,7 @@ func (hc *HotStuffCoordinator) processDecidePhase(commitQC *types.QuorumCertific
 			"view":        commitQC.View,
 			"phase":       commitQC.Phase,
 			"vote_count":  len(commitQC.Votes),
-			"required":    (len(hc.validators)*2)/3 + 1,
+			"required":    hc.config.QuorumThreshold(),
 		})
 	}
 	
@@ -966,7 +966,7 @@ func (hc *HotStuffCoordinator) formQuorumCertificate(
 	phase types.ConsensusPhase,
 	votes map[types.NodeID]*types.Vote,
 ) (*types.QuorumCertificate, error) {
-	requiredVotes := (len(hc.validators)*2)/3 + 1
+	requiredVotes := hc.config.QuorumThreshold()
 	if len(votes) < requiredVotes {
 		return nil, fmt.Errorf("insufficient votes: got %d, need %d", len(votes), requiredVotes)
 	}
@@ -1078,7 +1078,7 @@ func (hc *HotStuffCoordinator) storeQC(qc *types.QuorumCertificate) error {
 }
 
 func (hc *HotStuffCoordinator) verifyQC(qc *types.QuorumCertificate) error {
-	requiredVotes := (len(hc.validators)*2)/3 + 1
+	requiredVotes := hc.config.QuorumThreshold()
 	if len(qc.Votes) < requiredVotes {
 		return fmt.Errorf("insufficient votes in QC: got %d, need %d", len(qc.Votes), requiredVotes)
 	}

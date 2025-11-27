@@ -25,10 +25,11 @@ import (
 // This test ensures the fundamental correctness of the view change implementation.
 // It implements test 1.1 from task 05-04-view-change-flow-integration.md
 func TestViewTimeoutAndRecovery(t *testing.T) {
-	const totalNodes = 5
+	const totalNodes = 7
 	t.Log("=== View Change Test: Timeout and Recovery ===")
 
-	// 1. Create 5-node network with event tracing
+	// 1. Create 7-node network with event tracing
+	// With n=7, quorum=(7*2)/3+1=5, so when 1 node is partitioned, 6 remain > 5 quorum
 	tracer := mocks.NewConsensusEventTracer()
 	nodes, networkManager, consensusConfig, err := CreateTestNetwork(totalNodes, tracer, false)
 	require.NoError(t, err, "Should successfully create test network")
@@ -547,11 +548,15 @@ func TestNetworkPartitionViewChange(t *testing.T) {
 	t.Log("=== View Change Test: Network Partition ===")
 
 	tracer := mocks.NewConsensusEventTracer()
-	nodes, networkManager, consensusConfig, err := CreateTestNetwork(totalNodes, tracer, false)
+	result, err := CreateTestNetworkWithStorages(totalNodes, tracer, false)
 	require.NoError(t, err, "Should successfully create test network")
-	defer networkManager.StopAll()
+	defer result.NetworkManager.StopAll()
 
-	helpers := testinglib.NewViewChangeTestHelpers(nodes, networkManager, tracer, consensusConfig)
+	nodes := result.Nodes
+	consensusConfig := result.Config
+
+	helpers := testinglib.NewViewChangeTestHelpers(nodes, result.NetworkManager, tracer, consensusConfig)
+	helpers.SetStorages(result.Storages) // Enable state sync
 
 	// Identify leader and partition them
 	leader, err := consensusConfig.GetLeaderForView(0)
@@ -667,13 +672,29 @@ func TestNetworkPartitionViewChange(t *testing.T) {
 		t.Logf("✓ Isolated leader Node%d correctly did not commit in view %d", leader, targetView)
 	}
 
-	// Heal the network - state recovery is not implemented yet
+	// Heal the network
 	err = helpers.UnblockNode(leader)
 	require.NoError(t, err, "Should be able to heal partition")
 	t.Logf("✓ Network partition healed - Node%d reconnected", leader)
 
-	// Note: State synchronization and recovery is not implemented yet
-	// The test validates partition tolerance and majority progress only
-	t.Log("✓ Network partition test completed (state sync not implemented)")
-	t.Logf("✓ Majority partition successfully made progress while leader Node%d was isolated", leader)
+	// Synchronize the previously partitioned node's state
+	t.Logf("🔄 Synchronizing state for previously partitioned Node%d...", leader)
+	err = helpers.SyncNodeState(leader)
+	require.NoError(t, err, "Should be able to sync partitioned node state")
+	t.Logf("✓ Node%d synchronized state from peers", leader)
+
+	// Verify the synced node is now at the correct view
+	syncedView := nodes[leader].GetCoordinator().GetCurrentView()
+	t.Logf("Node%d now at view %d after sync", leader, syncedView)
+	require.GreaterOrEqual(t, uint64(syncedView), targetView,
+		"Synced node should be at or beyond the target view")
+
+	// Verify state sync events were emitted
+	stateSyncRequested := helpers.GetEventsCount(events.EventStateSyncRequested)
+	stateSyncCompleted := helpers.GetEventsCount(events.EventStateSyncCompleted)
+	t.Logf("State sync events - Requested: %d, Completed: %d", stateSyncRequested, stateSyncCompleted)
+	require.Greater(t, stateSyncCompleted, 0, "State sync completed event should be emitted")
+
+	t.Log("✅ Network partition test completed with full state sync recovery")
+	t.Logf("✓ Node%d successfully recovered and synchronized after partition heal", leader)
 }

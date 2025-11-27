@@ -67,9 +67,11 @@ func (c *ConsensusConfig) FaultyNodes() int {
 	return (totalNodes - 1) / 3
 }
 
-// QuorumThreshold returns the minimum number of votes required for a quorum (2f+1).
+// QuorumThreshold returns the minimum number of votes required for a quorum.
+// HotStuff BFT requires ⌊2n/3⌋+1 votes to ensure >2/3 honest majority.
+// For n=5: ⌊10/3⌋+1 = 4 votes required.
 func (c *ConsensusConfig) QuorumThreshold() int {
-	return 2*c.FaultyNodes() + 1
+	return (c.TotalNodes()*2)/3 + 1
 }
 
 // IsValidNodeID returns true if the given NodeID is valid in this configuration.
