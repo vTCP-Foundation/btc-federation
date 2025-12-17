@@ -16,6 +16,7 @@ type ViewChangeTestHelpers struct {
 	networkManager *integration.NetworkManager
 	tracer         *mocks.ConsensusEventTracer
 	config         *types.ConsensusConfig
+	storages       map[types.NodeID]*mocks.MockStorage // Optional - set via SetStorages for state sync
 }
 
 // NewViewChangeTestHelpers creates a new instance of view change test helpers

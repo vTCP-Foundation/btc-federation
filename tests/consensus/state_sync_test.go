@@ -16,6 +16,7 @@ import (
 // TestBasicStateSync verifies that a node behind by 1 view can sync successfully.
 // Scenario: Node is blocked during view 0 consensus, then unblocked and synced.
 func TestBasicStateSync(t *testing.T) {
+	t.Parallel()
 	const totalNodes = 5
 	t.Log("=== State Sync Test: Basic Single View Sync ===")
 
@@ -111,6 +112,7 @@ func TestBasicStateSync(t *testing.T) {
 
 // TestMultiViewGapSync verifies that a node behind by multiple views syncs correctly.
 func TestMultiViewGapSync(t *testing.T) {
+	t.Parallel()
 	const totalNodes = 5
 	t.Log("=== State Sync Test: Multi-View Gap Sync ===")
 
@@ -178,6 +180,7 @@ func TestMultiViewGapSync(t *testing.T) {
 // TestStateSyncPreservesLockedQC verifies that state sync handles lockedQC correctly.
 // This is a safety-critical test - lockedQC prevents equivocation.
 func TestStateSyncPreservesLockedQC(t *testing.T) {
+	t.Parallel()
 	const totalNodes = 5
 	t.Log("=== State Sync Test: LockedQC Preservation ===")
 
@@ -277,6 +280,7 @@ func TestStateSyncPreservesLockedQC(t *testing.T) {
 
 // TestSyncedNodeCanVote verifies that a synced node can participate in future rounds.
 func TestSyncedNodeCanVote(t *testing.T) {
+	t.Parallel()
 	const totalNodes = 5
 	t.Log("=== State Sync Test: Synced Node Can Vote ===")
 
@@ -349,6 +353,7 @@ func TestSyncedNodeCanVote(t *testing.T) {
 
 // TestStateSyncFromMultipleSources verifies sync picks the best source.
 func TestStateSyncFromMultipleSources(t *testing.T) {
+	t.Parallel()
 	const totalNodes = 5
 	t.Log("=== State Sync Test: Multiple Source Selection ===")
 

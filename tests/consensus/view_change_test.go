@@ -25,6 +25,7 @@ import (
 // This test ensures the fundamental correctness of the view change implementation.
 // It implements test 1.1 from task 05-04-view-change-flow-integration.md
 func TestViewTimeoutAndRecovery(t *testing.T) {
+	t.Parallel()
 	const totalNodes = 7
 	t.Log("=== View Change Test: Timeout and Recovery ===")
 
@@ -544,6 +545,7 @@ func TestViewTimeoutAndRecovery(t *testing.T) {
 //
 // This is a simpler test to validate partition functionality works correctly
 func TestNetworkPartitionViewChange(t *testing.T) {
+	t.Parallel()
 	const totalNodes = 5
 	t.Log("=== View Change Test: Network Partition ===")
 

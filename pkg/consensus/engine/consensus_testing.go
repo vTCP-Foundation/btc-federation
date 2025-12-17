@@ -75,5 +75,11 @@ func (hc *HotStuffConsensus) ForceRebuildBlockTree(blocks map[types.BlockHash]*t
 	return nil
 }
 
+// GetSafetyRules returns the internal safety rules for test verification.
+// This allows tests to directly verify SAFENODE predicate behavior.
+func (hc *HotStuffConsensus) GetSafetyRules() *SafetyRules {
+	return hc.safetyRules
+}
+
 // Verify HotStuffConsensus implements EngineTestable at compile time
 var _ EngineTestable = (*HotStuffConsensus)(nil)

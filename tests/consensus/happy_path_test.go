@@ -15,6 +15,7 @@ import (
 )
 
 func TestNetworkInitialization(t *testing.T) {
+	t.Parallel()
 	t.Log("=== Network Initialization Test (Unified Node) ===")
 
 	tracer := mocks.NewConsensusEventTracer()
@@ -37,6 +38,7 @@ func TestNetworkInitialization(t *testing.T) {
 }
 
 func TestConsensusFlow(t *testing.T) {
+	t.Parallel()
 	const totalNodes = 5
 	t.Log("=== Consensus Flow Test with Sequential Validation ===")
 
@@ -180,12 +182,13 @@ func TestConsensusFlow(t *testing.T) {
 			}
 		}
 
-		// This test is expected to fail initially - that's the point
+		// Show guidance for debugging
 		t.Logf("\nNote: This test failure shows exactly what events the consensus implementation needs to emit.")
 		t.Logf("Use this output as a reference to implement the missing event emissions in the consensus engine.")
 
-		// Don't fail the test immediately - show the complete analysis first
-		// t.Fatal("Sequential validation failed - see output above for implementation guidance")
+		// ASSERTION: Validation must pass - fail the test if it doesn't
+		t.Fatalf("Sequential validation failed: %d/%d events passed (%.1f%%) - see output above for details",
+			len(result.PassedEvents), result.TotalExpected, completionPercent)
 	}
 
 	t.Log("\n=== Consensus Flow Test Complete ===")
@@ -284,6 +287,7 @@ func min(a, b int) int {
 }
 
 func TestMultiRoundConsensus(t *testing.T) {
+	t.Parallel()
 	const totalNodes = 5
 	t.Log("=== Multi-Round Consensus Test (Unified Node) ===")
 
@@ -343,6 +347,7 @@ func TestMultiRoundConsensus(t *testing.T) {
 }
 
 func TestConsensusPerformance(t *testing.T) {
+	t.Parallel()
 	const totalNodes = 5
 	t.Log("=== Consensus Performance Test (Unified Node) ===")
 
@@ -435,6 +440,7 @@ func TestConsensusPerformance(t *testing.T) {
 }
 
 func TestEventValidation(t *testing.T) {
+	t.Parallel()
 	const totalNodes = 5
 	t.Log("=== Event Validation Framework Test (Unified Node) ===")
 

@@ -13,11 +13,19 @@ func calculateLeader(view uint64, nodeCount uint16) uint16 {
 	return uint16(view % uint64(nodeCount))
 }
 
+// CalculateQuorum returns the minimum number of votes required for a quorum.
+// This MUST match types.ConsensusConfig.QuorumThreshold() exactly.
+// HotStuff BFT requires ⌊2n/3⌋+1 votes to ensure >2/3 honest majority.
+// For n=5: ⌊10/3⌋+1 = 4 votes required.
+func CalculateQuorum(nodeCount int) int {
+	return (2*nodeCount)/3 + 1
+}
+
 // BuildCompleteHappyPathSequence builds the complete expected event sequence for a successful consensus round
 func BuildCompleteHappyPathSequence(nodeCount int, view int) []ExpectedEventSequence {
 	leader := calculateLeader(uint64(view), uint16(nodeCount))
 	validators := nodeCount - 1 // All nodes except leader
-	quorum := 2*(nodeCount-1)/3 + 1 // Byzantine fault tolerance: need >2f votes
+	quorum := CalculateQuorum(nodeCount)
 	
 	sequence := []ExpectedEventSequence{}
 	seqNum := 1
@@ -73,7 +81,7 @@ func buildNewViewPhase(seqNum *int, nodeCount int, leader int) []ExpectedEventSe
 			NodeID:         &leader,
 			EventType:      events.EventNewViewMessageReceived,
 			Required:       true,
-			MinOccurrences: 2*(nodeCount-1)/3 + 1, // Quorum of NewView messages
+			MinOccurrences: CalculateQuorum(nodeCount), // Quorum of NewView messages
 			MaxOccurrences: nodeCount - 1,
 			WindowStart:    events.EventNewViewMessageSent,
 			WindowDuration: 1 * time.Second,
@@ -89,7 +97,7 @@ func buildNewViewPhase(seqNum *int, nodeCount int, leader int) []ExpectedEventSe
 			NodeID:         &leader,
 			EventType:      events.EventNewViewMessageValidated,
 			Required:       true,
-			MinOccurrences: 2*(nodeCount-1)/3 + 1, // Quorum validation
+			MinOccurrences: CalculateQuorum(nodeCount), // Quorum validation
 			MaxOccurrences: nodeCount - 1,
 			MaxDelay:       100 * time.Millisecond,
 			DependsOn:      []int{*seqNum + 2},

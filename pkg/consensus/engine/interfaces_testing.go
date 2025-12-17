@@ -23,4 +23,8 @@ type EngineTestable interface {
 	// Returns error if any block cannot be added (missing parent chain).
 	// UNSAFE: This bypasses normal block validation. Only use for testing.
 	ForceRebuildBlockTree(blocks map[types.BlockHash]*types.Block) error
+
+	// GetSafetyRules returns the internal safety rules for test verification.
+	// This allows tests to directly verify SAFENODE predicate behavior.
+	GetSafetyRules() *SafetyRules
 }

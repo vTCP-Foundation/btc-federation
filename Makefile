@@ -199,10 +199,49 @@ btc-logs:
 	fi
 
 # Go testing targets
+.PHONY: test test-consensus test-consensus-verbose test-consensus-short build build-consensus
+
+# Build tags for consensus testing (includes test-only state sync code)
+CONSENSUS_TEST_TAGS = -tags="consensus_testing"
+
+# Detect CPU count for parallel test execution
+# Uses nproc on Linux, sysctl on macOS, falls back to 4
+CPU_COUNT := $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
+# Run 5 tests per CPU (tests are sleep-heavy, not CPU-bound)
+TEST_PARALLEL = -parallel $(shell echo $$(($(CPU_COUNT) * 5)))
+
 test:
 	@echo "Running all Go tests..."
 	@go test -timeout 5m ./...
 
+# Run consensus tests with required build tags and parallelism
+# Tests use t.Parallel() so they run concurrently for ~10x speedup
 test-consensus:
-	@echo "Running consensus tests with default timeout..."
-	@go test -v -timeout 5m ./tests/consensus/...
+	@echo "Running consensus tests ($(shell echo $$(($(CPU_COUNT) * 5))) parallel)..."
+	@go test $(CONSENSUS_TEST_TAGS) $(TEST_PARALLEL) -timeout 5m ./tests/consensus/...
+
+# Run consensus tests with verbose output
+test-consensus-verbose:
+	@echo "Running consensus tests verbose ($(shell echo $$(($(CPU_COUNT) * 5))) parallel)..."
+	@go test $(CONSENSUS_TEST_TAGS) $(TEST_PARALLEL) -v -timeout 5m ./tests/consensus/...
+
+# Run a quick subset of consensus tests (happy path only)
+test-consensus-short:
+	@echo "Running short consensus tests..."
+	@go test $(CONSENSUS_TEST_TAGS) $(TEST_PARALLEL) -v -timeout 2m -run "TestNetworkInitialization|TestConsensusFlow" ./tests/consensus/...
+
+# Run specific consensus test file
+test-consensus-file:
+	@echo "Usage: make test-consensus-file FILE=state_sync_test.go"
+	@echo "Running tests from file: $(FILE)"
+	@go test $(CONSENSUS_TEST_TAGS) $(TEST_PARALLEL) -v -timeout 5m ./tests/consensus/... -run "$$(grep -oP 'func \K(Test\w+)' tests/consensus/$(FILE) | tr '\n' '|' | sed 's/|$$//')"
+
+# Build without test tags (production build - excludes test-only code)
+build:
+	@echo "Building production binaries..."
+	@go build ./...
+
+# Build with test tags (includes test-only state sync code)
+build-consensus:
+	@echo "Building with consensus testing support..."
+	@go build $(CONSENSUS_TEST_TAGS) ./...

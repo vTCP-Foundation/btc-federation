@@ -54,6 +54,10 @@ type HotStuffCoordinator struct {
 	prepareVotes    map[types.BlockHash]map[types.NodeID]*types.Vote
 	preCommitVotes  map[types.BlockHash]map[types.NodeID]*types.Vote
 	commitVotes     map[types.BlockHash]map[types.NodeID]*types.Vote
+
+	// voterCommitments tracks (View, Phase, Voter) → BlockHash to detect equivocation
+	// In-memory only - cleaned up on view change (votes are view-specific)
+	voterCommitments map[types.ViewNumber]map[types.ConsensusPhase]map[types.NodeID]types.BlockHash
 	
 	// QC storage
 	prepareQCs    map[types.BlockHash]*types.QuorumCertificate
@@ -100,10 +104,11 @@ func NewHotStuffCoordinator(
 		highestQC:          nil,
 		processedPhases:    make(map[types.BlockHash]map[types.ConsensusPhase]bool),
 		processedCommitQCs: make(map[types.BlockHash]bool),
-		prepareVotes:    make(map[types.BlockHash]map[types.NodeID]*types.Vote),
-		preCommitVotes:  make(map[types.BlockHash]map[types.NodeID]*types.Vote),
-		commitVotes:     make(map[types.BlockHash]map[types.NodeID]*types.Vote),
-		prepareQCs:      make(map[types.BlockHash]*types.QuorumCertificate),
+		prepareVotes:     make(map[types.BlockHash]map[types.NodeID]*types.Vote),
+		preCommitVotes:   make(map[types.BlockHash]map[types.NodeID]*types.Vote),
+		commitVotes:      make(map[types.BlockHash]map[types.NodeID]*types.Vote),
+		voterCommitments: make(map[types.ViewNumber]map[types.ConsensusPhase]map[types.NodeID]types.BlockHash),
+		prepareQCs:       make(map[types.BlockHash]*types.QuorumCertificate),
 		preCommitQCs:    make(map[types.BlockHash]*types.QuorumCertificate),
 		commitQCs:       make(map[types.BlockHash]*types.QuorumCertificate),
 		ctx:             ctx,
@@ -573,7 +578,31 @@ func (hc *HotStuffCoordinator) processVoteInternalWithAllEvents(vote *types.Vote
 			"voter":      vote.Voter,
 		})
 	}
-	
+
+	// EQUIVOCATION DETECTION: Check if voter already committed to a different block
+	// This must happen BEFORE storing the vote to detect conflicting votes
+	if hc.voterCommitments[vote.View] == nil {
+		hc.voterCommitments[vote.View] = make(map[types.ConsensusPhase]map[types.NodeID]types.BlockHash)
+	}
+	if hc.voterCommitments[vote.View][vote.Phase] == nil {
+		hc.voterCommitments[vote.View][vote.Phase] = make(map[types.NodeID]types.BlockHash)
+	}
+
+	// Check if voter already committed to a different block in this (view, phase)
+	if existingBlock, exists := hc.voterCommitments[vote.View][vote.Phase][vote.Voter]; exists {
+		if existingBlock != vote.BlockHash {
+			// EQUIVOCATION DETECTED! Voter sent conflicting votes
+			hc.emitEquivocationEvent(vote.Voter, vote.View, vote.Phase, existingBlock, vote.BlockHash)
+			return fmt.Errorf("equivocation detected: node %d voted for blocks %x and %x in view %d phase %s",
+				vote.Voter, existingBlock[:8], vote.BlockHash[:8], vote.View, vote.Phase)
+		}
+		// Same block, duplicate vote - skip (already recorded)
+		return nil
+	}
+
+	// Record voter's commitment to this block for this (view, phase)
+	hc.voterCommitments[vote.View][vote.Phase][vote.Voter] = vote.BlockHash
+
 	// Store vote based on phase
 	var voteMap map[types.BlockHash]map[types.NodeID]*types.Vote
 	switch vote.Phase {
@@ -586,12 +615,12 @@ func (hc *HotStuffCoordinator) processVoteInternalWithAllEvents(vote *types.Vote
 	default:
 		return fmt.Errorf("unknown vote phase: %s", vote.Phase)
 	}
-	
+
 	// Initialize vote collection for this block if needed
 	if voteMap[vote.BlockHash] == nil {
 		voteMap[vote.BlockHash] = make(map[types.NodeID]*types.Vote)
 	}
-	
+
 	// Store vote
 	voteMap[vote.BlockHash][vote.Voter] = vote
 	votes := voteMap[vote.BlockHash]
@@ -1083,7 +1112,16 @@ func (hc *HotStuffCoordinator) verifyQC(qc *types.QuorumCertificate) error {
 	if len(qc.Votes) < requiredVotes {
 		return fmt.Errorf("insufficient votes in QC: got %d, need %d", len(qc.Votes), requiredVotes)
 	}
-	
+
+	// Check for duplicate voters (Byzantine attack prevention)
+	seenVoters := make(map[types.NodeID]bool)
+	for _, vote := range qc.Votes {
+		if seenVoters[vote.Voter] {
+			return fmt.Errorf("duplicate voter %d in QC", vote.Voter)
+		}
+		seenVoters[vote.Voter] = true
+	}
+
 	// Verify each vote signature
 	for _, vote := range qc.Votes {
 		voteData := fmt.Sprintf("%x:%d:%s:%d", vote.BlockHash, vote.View, vote.Phase, vote.Voter)
@@ -1173,24 +1211,66 @@ func (hc *HotStuffCoordinator) emitAllNodesEvent(eventType events.EventType, pay
 	}
 }
 
+// emitEquivocationEvent emits an event when equivocation (double voting) is detected
+func (hc *HotStuffCoordinator) emitEquivocationEvent(
+	voter types.NodeID,
+	view types.ViewNumber,
+	phase types.ConsensusPhase,
+	block1, block2 types.BlockHash,
+) {
+	if hc.eventTracer != nil {
+		hc.eventTracer.RecordEvent(uint16(hc.nodeID), events.EventEquivocationFound, events.EventPayload{
+			"voter":       voter,
+			"view":        view,
+			"phase":       phase,
+			"block1_hash": block1,
+			"block2_hash": block2,
+		})
+	}
+	hc.logger.Warn().
+		Uint16("voter", uint16(voter)).
+		Uint64("view", uint64(view)).
+		Str("phase", string(phase)).
+		Hex("block1", block1[:8]).
+		Hex("block2", block2[:8]).
+		Msg("Equivocation detected: voter sent conflicting votes for different blocks")
+}
+
 func (hc *HotStuffCoordinator) advanceView() {
 	hc.currentView++
 	hc.currentPhase = types.PhaseNone
-	
+
 	// CRITICAL: Synchronize consensus engine view with coordinator view
 	// This fixes the "block view X does not match current view Y" errors
 	for hc.consensus.GetCurrentView() < hc.currentView {
 		hc.consensus.AdvanceView()
 	}
-	
+
 	// ASSERTION: Verify synchronization succeeded
 	if hc.consensus.GetCurrentView() != hc.currentView {
 		panic(fmt.Sprintf("FATAL: Failed to synchronize views after advance - coordinator: %d, engine: %d",
 			hc.currentView, hc.consensus.GetCurrentView()))
 	}
-	
-	fmt.Printf("   [Node %d] 📈 Advanced to view %d (consensus engine synchronized)\n", 
+
+	// Clean up old voter commitments to prevent memory growth
+	hc.cleanupOldVoterCommitments(hc.currentView)
+
+	fmt.Printf("   [Node %d] 📈 Advanced to view %d (consensus engine synchronized)\n",
 		hc.nodeID, hc.currentView)
+}
+
+// cleanupOldVoterCommitments removes voter commitment tracking data for old views
+// to prevent unbounded memory growth. Keeps the last 2 views for safety.
+func (hc *HotStuffCoordinator) cleanupOldVoterCommitments(currentView types.ViewNumber) {
+	if currentView < 2 {
+		return
+	}
+	deleteBeforeView := currentView - 2
+	for view := range hc.voterCommitments {
+		if view < deleteBeforeView {
+			delete(hc.voterCommitments, view)
+		}
+	}
 }
 
 // Getters for testing and monitoring
