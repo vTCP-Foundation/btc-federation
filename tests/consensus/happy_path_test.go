@@ -316,7 +316,8 @@ func TestMultiRoundConsensus(t *testing.T) {
 		}
 
 		t.Log("Waiting for consensus completion...")
-		time.Sleep(2 * time.Second)
+		helpers := testinglib.NewViewChangeTestHelpers(nodes, networkManager, tracer, nil)
+		helpers.WaitForConsensusCompletion(5 * time.Second)
 
 		roundEvents := tracer.GetEvents()
 		totalEvents += len(roundEvents)
@@ -378,7 +379,8 @@ func TestConsensusPerformance(t *testing.T) {
 			continue
 		}
 
-		time.Sleep(2 * time.Second)
+		helpers := testinglib.NewViewChangeTestHelpers(nodes, networkManager, tracer, nil)
+		helpers.WaitForConsensusCompletion(5 * time.Second)
 		roundLatency := time.Since(start)
 
 		events := tracer.GetEvents()
@@ -459,7 +461,8 @@ func TestEventValidation(t *testing.T) {
 	require.NoError(t, err, "Should be able to start consensus")
 
 	t.Log("Waiting for consensus execution...")
-	time.Sleep(3 * time.Second)
+	helpers := testinglib.NewViewChangeTestHelpers(nodes, networkManager, tracer, nil)
+	helpers.WaitForQuorumCommits(5 * time.Second)
 
 	allEvents := tracer.GetEvents()
 	t.Logf("✓ Collected %d events for validation", len(allEvents))

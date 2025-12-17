@@ -41,8 +41,8 @@ func TestFalseTimeoutAttack(t *testing.T) {
 	err = nodes[leader].ProposeBlock([]byte("false_timeout_test"))
 	require.NoError(t, err)
 
-	// Wait for proposal
-	time.Sleep(300 * time.Millisecond)
+	// Wait for proposal to be processed
+	helpers.WaitForProposalProcessed(2 * time.Second)
 
 	// Byzantine node tries to force view change by simulating timeout behavior
 	// In practice this is done by partitioning then unpartitioning quickly
@@ -124,8 +124,8 @@ func TestViewConfusionAttack(t *testing.T) {
 	err = nodes[leader].ProposeBlock([]byte("view_confusion_test"))
 	require.NoError(t, err)
 
-	// Wait for view 0 to progress
-	time.Sleep(500 * time.Millisecond)
+	// Wait for proposal to be processed
+	helpers.WaitForProposalProcessed(2 * time.Second)
 
 	// Current view
 	currentView := nodes[leader].GetCoordinator().GetCurrentView()
@@ -309,8 +309,8 @@ func TestResourceExhaustionAttack(t *testing.T) {
 	err = nodes[leader].ProposeBlock([]byte("resource_exhaustion_test"))
 	require.NoError(t, err)
 
-	// Wait for proposal
-	time.Sleep(300 * time.Millisecond)
+	// Wait for proposal to be processed
+	helpers.WaitForProposalProcessed(2 * time.Second)
 
 	byzantineNode := types.NodeID(4)
 	if byzantineNode == leader {

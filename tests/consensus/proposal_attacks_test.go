@@ -42,8 +42,8 @@ func TestConflictingProposals(t *testing.T) {
 	err = nodes[leader].ProposeBlock([]byte("legitimate_proposal"))
 	require.NoError(t, err)
 
-	// Wait for proposal distribution
-	time.Sleep(300 * time.Millisecond)
+	// Wait for proposal to be processed
+	helpers.WaitForProposalProcessed(2 * time.Second)
 
 	// Now simulate equivocation by creating a conflicting block
 	// and injecting it directly to some nodes
@@ -156,7 +156,7 @@ func TestInvalidProposalHandling(t *testing.T) {
 	err = nodes[leader].ProposeBlock([]byte("valid_proposal"))
 	require.NoError(t, err)
 
-	time.Sleep(300 * time.Millisecond)
+	helpers.WaitForProposalProcessed(2 * time.Second)
 
 	// Pick a target node to receive invalid proposals
 	targetNode := types.NodeID(1)

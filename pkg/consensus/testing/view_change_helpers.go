@@ -201,7 +201,7 @@ func (h *ViewChangeTestHelpers) WaitForEvent(eventType events.EventType, maxWait
 func (h *ViewChangeTestHelpers) WaitForEventFromNode(nodeID types.NodeID, eventType events.EventType, maxWait time.Duration) bool {
 	start := time.Now()
 	checkInterval := 50 * time.Millisecond
-	
+
 	for time.Since(start) < maxWait {
 		nodeEvents := h.FilterEventsByNode(nodeID)
 		for _, event := range nodeEvents {
@@ -211,8 +211,74 @@ func (h *ViewChangeTestHelpers) WaitForEventFromNode(nodeID types.NodeID, eventT
 		}
 		time.Sleep(checkInterval)
 	}
-	
+
 	return false
+}
+
+// WaitForCondition polls until condition returns true or timeout
+// Returns true if condition was met, false on timeout
+func (h *ViewChangeTestHelpers) WaitForCondition(condition func() bool, maxWait time.Duration) bool {
+	deadline := time.Now().Add(maxWait)
+	checkInterval := 50 * time.Millisecond
+
+	for time.Now().Before(deadline) {
+		if condition() {
+			return true
+		}
+		time.Sleep(checkInterval)
+	}
+
+	return false
+}
+
+// WaitForEventCount waits until at least minCount events of eventType occur
+func (h *ViewChangeTestHelpers) WaitForEventCount(eventType events.EventType, minCount int, maxWait time.Duration) bool {
+	return h.WaitForCondition(func() bool {
+		return h.GetEventsCount(eventType) >= minCount
+	}, maxWait)
+}
+
+// WaitForConsensusCompletion waits until at least one BlockCommitted event occurs
+// Use this after ProposeBlock to wait for consensus to complete
+func (h *ViewChangeTestHelpers) WaitForConsensusCompletion(maxWait time.Duration) bool {
+	return h.WaitForEventCount(events.EventBlockCommitted, 1, maxWait)
+}
+
+// WaitForNodeView waits until a specific node reaches at least the target view
+func (h *ViewChangeTestHelpers) WaitForNodeView(nodeID types.NodeID, targetView types.ViewNumber, maxWait time.Duration) bool {
+	node, exists := h.nodes[nodeID]
+	if !exists {
+		return false
+	}
+
+	return h.WaitForCondition(func() bool {
+		return node.GetCoordinator().GetCurrentView() >= targetView
+	}, maxWait)
+}
+
+// WaitForAllNodesView waits until all nodes reach at least the target view
+func (h *ViewChangeTestHelpers) WaitForAllNodesView(targetView types.ViewNumber, maxWait time.Duration) bool {
+	return h.WaitForCondition(func() bool {
+		for _, node := range h.nodes {
+			if node.GetCoordinator().GetCurrentView() < targetView {
+				return false
+			}
+		}
+		return true
+	}, maxWait)
+}
+
+// WaitForProposalProcessed waits until at least one ProposalReceived event occurs
+// Use this after ProposeBlock to wait for proposal distribution
+func (h *ViewChangeTestHelpers) WaitForProposalProcessed(maxWait time.Duration) bool {
+	return h.WaitForEventCount(events.EventProposalReceived, 1, maxWait)
+}
+
+// WaitForQuorumCommits waits until quorum number of BlockCommitted events occur
+// Quorum is calculated as (2n/3 + 1) where n is the number of nodes
+func (h *ViewChangeTestHelpers) WaitForQuorumCommits(maxWait time.Duration) bool {
+	quorum := (len(h.nodes)*2)/3 + 1
+	return h.WaitForEventCount(events.EventBlockCommitted, quorum, maxWait)
 }
 
 // VerifyAllNodesHaveLeader checks that all nodes have the same view

@@ -114,7 +114,9 @@ func TestSafeNodePredicateBlocksConflictingVotes(t *testing.T) {
 
 	err = nodes[leader].ProposeBlock([]byte("establish_lock"))
 	require.NoError(t, err)
-	time.Sleep(2 * time.Second)
+
+	helpers := testinglib.NewViewChangeTestHelpers(nodes, result.NetworkManager, tracer, config)
+	helpers.WaitForQuorumCommits(5 * time.Second)
 
 	// Find node with lockedQC
 	targetNode, targetID, lockedQC := findNodeWithLockedQC(nodes)
@@ -160,7 +162,9 @@ func TestSyncedNodeEnforcesLockedQC(t *testing.T) {
 
 	err = nodes[leader].ProposeBlock([]byte("establish_lock_for_sync"))
 	require.NoError(t, err)
-	time.Sleep(2 * time.Second)
+
+	helpers := testinglib.NewViewChangeTestHelpers(nodes, result.NetworkManager, tracer, config)
+	helpers.WaitForQuorumCommits(5 * time.Second)
 
 	// Find source node with lockedQC
 	_, sourceID, sourceLockedQC := findNodeWithLockedQC(nodes)
@@ -224,7 +228,9 @@ func TestNoConflictingCommits(t *testing.T) {
 
 	err = nodes[leader].ProposeBlock([]byte("safety_test_block"))
 	require.NoError(t, err)
-	time.Sleep(2 * time.Second)
+
+	helpers := testinglib.NewViewChangeTestHelpers(nodes, result.NetworkManager, tracer, config)
+	helpers.WaitForQuorumCommits(5 * time.Second)
 
 	// Collect committed blocks from all nodes via tracer events
 	committedBlocks := collectCommittedBlocksFromTracer(tracer)
@@ -285,7 +291,9 @@ func TestLockedQCPreventsEquivocationAcrossViews(t *testing.T) {
 	require.NoError(t, err)
 	err = nodes[leader].ProposeBlock([]byte("establish_lock_cross_view"))
 	require.NoError(t, err)
-	time.Sleep(2 * time.Second)
+
+	helpers := testinglib.NewViewChangeTestHelpers(nodes, result.NetworkManager, tracer, config)
+	helpers.WaitForQuorumCommits(5 * time.Second)
 
 	// Find node with lockedQC
 	targetNode, targetID, lockedQC := findNodeWithLockedQC(nodes)

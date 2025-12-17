@@ -59,8 +59,8 @@ func TestBasicStateSync(t *testing.T) {
 	err = nodes[leader].ProposeBlock([]byte("test_block_view_0"))
 	require.NoError(t, err)
 
-	// Wait for consensus to complete
-	time.Sleep(2 * time.Second)
+	// Wait for consensus to complete (quorum nodes must commit)
+	helpers.WaitForQuorumCommits(5 * time.Second)
 
 	// Verify majority completed consensus
 	committedCount := 0
@@ -201,7 +201,7 @@ func TestStateSyncPreservesLockedQC(t *testing.T) {
 
 	err = nodes[leader].ProposeBlock([]byte("establish_qc_block"))
 	require.NoError(t, err)
-	time.Sleep(2 * time.Second)
+	helpers.WaitForQuorumCommits(5 * time.Second)
 
 	// Find a node with lockedQC (safety-critical state)
 	var sourceNode types.NodeID
@@ -305,7 +305,7 @@ func TestSyncedNodeCanVote(t *testing.T) {
 	leader, _ := consensusConfig.GetLeaderForView(0)
 	err = nodes[leader].ProposeBlock([]byte("round_1_block"))
 	require.NoError(t, err)
-	time.Sleep(2 * time.Second)
+	helpers.WaitForQuorumCommits(5 * time.Second)
 
 	// Unblock and sync
 	err = helpers.UnblockNode(partitionedNode)
@@ -372,7 +372,7 @@ func TestStateSyncFromMultipleSources(t *testing.T) {
 	leader, _ := consensusConfig.GetLeaderForView(0)
 	err = nodes[leader].ProposeBlock([]byte("test_block"))
 	require.NoError(t, err)
-	time.Sleep(2 * time.Second)
+	helpers.WaitForQuorumCommits(5 * time.Second)
 
 	// Get the view of each node
 	nodeViews := make(map[types.NodeID]types.ViewNumber)

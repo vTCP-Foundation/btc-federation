@@ -43,7 +43,7 @@ func TestDoubleVoteDetection(t *testing.T) {
 	require.NoError(t, err)
 
 	// Wait for proposal to be processed
-	time.Sleep(500 * time.Millisecond)
+	helpers.WaitForProposalProcessed(2 * time.Second)
 
 	// Pick a Byzantine node (non-leader)
 	var byzantineNode types.NodeID
@@ -189,7 +189,7 @@ func TestEquivocationEvidenceCollection(t *testing.T) {
 	leader, _ := consensusConfig.GetLeaderForView(0)
 	err = nodes[leader].ProposeBlock([]byte("evidence_test_block"))
 	require.NoError(t, err)
-	time.Sleep(500 * time.Millisecond)
+	helpers.WaitForProposalProcessed(2 * time.Second)
 
 	// Create Byzantine scenario: Node 2 sends conflicting votes
 	byzantineNode := types.NodeID(2)
@@ -322,11 +322,13 @@ func TestByzantineDetectionAcrossPhases(t *testing.T) {
 	nodes := result.Nodes
 	consensusConfig := result.Config
 
+	helpers := testinglib.NewViewChangeTestHelpers(nodes, result.NetworkManager, tracer, consensusConfig)
+
 	// Get leader and start consensus
 	leader, _ := consensusConfig.GetLeaderForView(0)
 	err = nodes[leader].ProposeBlock([]byte("phase_test_block"))
 	require.NoError(t, err)
-	time.Sleep(500 * time.Millisecond)
+	helpers.WaitForProposalProcessed(2 * time.Second)
 
 	byzantineNode := types.NodeID(1)
 	if byzantineNode == leader {

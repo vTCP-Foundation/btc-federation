@@ -40,8 +40,8 @@ func TestMessageWithholding(t *testing.T) {
 	err = nodes[leader].ProposeBlock([]byte("message_withholding_test"))
 	require.NoError(t, err)
 
-	// Wait for initial consensus to establish
-	time.Sleep(500 * time.Millisecond)
+	// Wait for proposal to be processed
+	helpers.WaitForProposalProcessed(2 * time.Second)
 
 	// Simulate message withholding by partitioning node 2
 	// This simulates a Byzantine node that drops all its messages
@@ -130,7 +130,7 @@ func TestMessageReplayAttack(t *testing.T) {
 	require.NoError(t, err)
 
 	// Wait for view 0 to complete
-	time.Sleep(time.Second)
+	helpers.WaitForProposalProcessed(2 * time.Second)
 
 	// Capture current view from any node
 	currentView := nodes[leader].GetCoordinator().GetCurrentView()
@@ -217,8 +217,8 @@ func TestMessageReorderingAttack(t *testing.T) {
 	err = nodes[leader].ProposeBlock([]byte("reorder_test"))
 	require.NoError(t, err)
 
-	// Wait for initial message distribution
-	time.Sleep(300 * time.Millisecond)
+	// Wait for proposal to be processed
+	helpers.WaitForProposalProcessed(2 * time.Second)
 
 	// Simulate reordering by injecting votes in wrong phase order
 	// Try to inject a PreCommit vote before Prepare phase completes
@@ -309,8 +309,8 @@ func TestTimingAttack(t *testing.T) {
 	err = nodes[leader].ProposeBlock([]byte("timing_attack_test"))
 	require.NoError(t, err)
 
-	// Wait for initial consensus
-	time.Sleep(500 * time.Millisecond)
+	// Wait for proposal to be processed
+	helpers.WaitForProposalProcessed(2 * time.Second)
 
 	// Simulate a timing attack by temporarily partitioning a node
 	// to delay its vote, then unblocking at a strategic time
@@ -390,8 +390,8 @@ func TestFloodingAttack(t *testing.T) {
 	err = nodes[leader].ProposeBlock([]byte("flooding_test"))
 	require.NoError(t, err)
 
-	// Wait for proposal distribution
-	time.Sleep(300 * time.Millisecond)
+	// Wait for proposal to be processed
+	helpers.WaitForProposalProcessed(2 * time.Second)
 
 	// Get block hash for creating flood messages
 	var blockHash types.BlockHash

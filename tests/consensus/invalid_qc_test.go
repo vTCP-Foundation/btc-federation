@@ -44,7 +44,7 @@ func TestForgedSignatureQCRejection(t *testing.T) {
 	require.NoError(t, err)
 
 	// Wait for consensus to complete and establish a valid block tree
-	time.Sleep(time.Second)
+	helpers.WaitForConsensusCompletion(5 * time.Second)
 
 	// Get a valid block hash from the events (a block that actually exists in tree)
 	var validBlockHash types.BlockHash
@@ -141,6 +141,8 @@ func TestInsufficientStakeQCRejection(t *testing.T) {
 	nodes := result.Nodes
 	consensusConfig := result.Config
 
+	helpers := testinglib.NewViewChangeTestHelpers(nodes, result.NetworkManager, tracer, consensusConfig)
+
 	// Calculate quorum requirements
 	quorum := consensusConfig.QuorumThreshold()
 	t.Logf("Quorum threshold: %d out of %d nodes", quorum, totalNodes)
@@ -149,7 +151,7 @@ func TestInsufficientStakeQCRejection(t *testing.T) {
 	leader, _ := consensusConfig.GetLeaderForView(0)
 	err = nodes[leader].ProposeBlock([]byte("stake_test_block"))
 	require.NoError(t, err)
-	time.Sleep(time.Second)
+	helpers.WaitForConsensusCompletion(5 * time.Second)
 
 	// Get a valid block hash from the events
 	var validBlockHash types.BlockHash
@@ -240,11 +242,13 @@ func TestDuplicateValidatorQCRejection(t *testing.T) {
 	nodes := result.Nodes
 	consensusConfig := result.Config
 
+	helpers := testinglib.NewViewChangeTestHelpers(nodes, result.NetworkManager, tracer, consensusConfig)
+
 	// Start normal consensus
 	leader, _ := consensusConfig.GetLeaderForView(0)
 	err = nodes[leader].ProposeBlock([]byte("duplicate_validator_test"))
 	require.NoError(t, err)
-	time.Sleep(time.Second)
+	helpers.WaitForConsensusCompletion(5 * time.Second)
 
 	// Get a valid block hash from the events
 	var validBlockHash types.BlockHash

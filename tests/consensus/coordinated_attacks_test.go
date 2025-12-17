@@ -52,8 +52,8 @@ func TestCoordinatedByzantine(t *testing.T) {
 	err = nodes[leader].ProposeBlock([]byte("coordinated_attack_test"))
 	require.NoError(t, err)
 
-	// Wait for proposal
-	time.Sleep(300 * time.Millisecond)
+	// Wait for proposal to be processed
+	helpers.WaitForProposalProcessed(2 * time.Second)
 
 	// Coordinated attack: Byzantine node attempts multiple attack vectors simultaneously
 	t.Log("Byzantine node executing coordinated attack:")

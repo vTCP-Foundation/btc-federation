@@ -40,8 +40,8 @@ func TestInvalidVoteInjection(t *testing.T) {
 	err = nodes[leader].ProposeBlock([]byte("invalid_vote_test"))
 	require.NoError(t, err)
 
-	// Wait for proposal
-	time.Sleep(300 * time.Millisecond)
+	// Wait for proposal to be processed
+	helpers.WaitForProposalProcessed(2 * time.Second)
 
 	byzantineNode := types.NodeID(2)
 	if byzantineNode == leader {
@@ -153,8 +153,8 @@ func TestSelectiveVoting(t *testing.T) {
 	err = nodes[leader].ProposeBlock([]byte("selective_voting_test_1"))
 	require.NoError(t, err)
 
-	// Wait for proposal
-	time.Sleep(300 * time.Millisecond)
+	// Wait for proposal to be processed
+	helpers.WaitForProposalProcessed(2 * time.Second)
 
 	// Partition the Byzantine node to simulate selective non-voting
 	t.Logf("Partitioning Node%d to simulate selective voting", byzantineNode)
@@ -308,8 +308,8 @@ func TestPhaseConfusionVote(t *testing.T) {
 	err = nodes[leader].ProposeBlock([]byte("phase_confusion_test"))
 	require.NoError(t, err)
 
-	// Wait for proposal
-	time.Sleep(300 * time.Millisecond)
+	// Wait for proposal to be processed
+	helpers.WaitForProposalProcessed(2 * time.Second)
 
 	// Get block hash from events
 	var blockHash types.BlockHash
@@ -418,7 +418,7 @@ func TestStaleVoteHandling(t *testing.T) {
 	require.NoError(t, err)
 
 	// Wait for view 0 to progress
-	time.Sleep(time.Second)
+	helpers.WaitForProposalProcessed(2 * time.Second)
 
 	// Get the block hash used in view 0
 	var view0BlockHash types.BlockHash

@@ -37,7 +37,7 @@ func TestPartitionDetection(t *testing.T) {
 	require.NoError(t, err)
 
 	// Wait for initial consensus
-	time.Sleep(time.Second)
+	helpers.WaitForConsensusCompletion(5 * time.Second)
 
 	// Partition a single node
 	partitionedNode := types.NodeID(2)
@@ -106,7 +106,7 @@ func TestSplitBrainScenario(t *testing.T) {
 	leader, _ := consensusConfig.GetLeaderForView(0)
 	err = nodes[leader].ProposeBlock([]byte("split_brain_test"))
 	require.NoError(t, err)
-	time.Sleep(time.Second)
+	helpers.WaitForConsensusCompletion(5 * time.Second)
 
 	// Create a split: Partition nodes 3 and 4 from the rest
 	// Group A: Nodes 0, 1, 2 (3 nodes - can still reach quorum with 4 votes needed: NO)
@@ -225,7 +225,7 @@ func TestPartialConnectivity(t *testing.T) {
 	leader, _ := consensusConfig.GetLeaderForView(0)
 	err = nodes[leader].ProposeBlock([]byte("partial_connectivity_test"))
 	require.NoError(t, err)
-	time.Sleep(time.Second)
+	helpers.WaitForConsensusCompletion(5 * time.Second)
 
 	// Simulate partial connectivity: Node 2 can only reach some nodes
 	// For simplicity, we'll just partition Node 2
@@ -238,8 +238,8 @@ func TestPartialConnectivity(t *testing.T) {
 	// The remaining 4 nodes should be able to continue (quorum = 4)
 	t.Log("Checking if remaining nodes can reach consensus...")
 
-	// Wait a bit and check if consensus progresses
-	time.Sleep(2 * time.Second)
+	// Wait for any consensus activity (events have accumulated from first round)
+	helpers.WaitForEventCount(events.EventBlockCommitted, 1, 5*time.Second)
 
 	// Check committed blocks via commit events from non-partitioned nodes
 	// The first consensus round should have completed before the partition
@@ -299,7 +299,7 @@ func TestConsensusResumeAfterPartition(t *testing.T) {
 	require.NoError(t, err)
 
 	// Wait for first round to complete
-	time.Sleep(2 * time.Second)
+	helpers.WaitForQuorumCommits(5 * time.Second)
 
 	// Record state after first round
 	viewAfterRound1 := nodes[0].GetCoordinator().GetCurrentView()
@@ -342,8 +342,8 @@ func TestConsensusResumeAfterPartition(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	// Wait for network to stabilize
-	time.Sleep(2 * time.Second)
+	// Wait for network to stabilize after sync
+	helpers.WaitForAllNodesView(viewAfterRound1, 5*time.Second)
 
 	// Try to start a new consensus round
 	currentView := nodes[0].GetCoordinator().GetCurrentView()
@@ -370,8 +370,10 @@ func TestConsensusResumeAfterPartition(t *testing.T) {
 		}
 	}
 
-	// Wait for potential consensus
-	time.Sleep(2 * time.Second)
+	// Wait for potential consensus (if proposal succeeded)
+	helpers.WaitForCondition(func() bool {
+		return len(tracer.GetEvents()) > eventsBeforeHeal
+	}, 3*time.Second)
 
 	// Check for new events after healing
 	eventsAfterHeal := len(tracer.GetEvents())
@@ -424,7 +426,7 @@ func TestExtendedPartitionRecovery(t *testing.T) {
 	leader, _ := consensusConfig.GetLeaderForView(0)
 	err = nodes[leader].ProposeBlock([]byte("initial_block"))
 	require.NoError(t, err)
-	time.Sleep(2 * time.Second)
+	helpers.WaitForQuorumCommits(5 * time.Second)
 
 	initialView := nodes[0].GetCoordinator().GetCurrentView()
 	t.Logf("Initial consensus complete at view %d", initialView)
@@ -474,8 +476,8 @@ func TestExtendedPartitionRecovery(t *testing.T) {
 	err = helpers.SyncNodeState(partitionedNode)
 	require.NoError(t, err)
 
-	// Allow time for sync
-	time.Sleep(time.Second)
+	// Wait for sync to complete (state sync completed event)
+	helpers.WaitForEventFromNode(partitionedNode, events.EventStateSyncCompleted, 3*time.Second)
 
 	// Verify recovery
 	recoveredView := nodes[partitionedNode].GetCoordinator().GetCurrentView()
