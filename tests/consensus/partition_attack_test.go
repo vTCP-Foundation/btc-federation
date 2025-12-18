@@ -108,6 +108,14 @@ func TestSplitBrainScenario(t *testing.T) {
 	require.NoError(t, err)
 	helpers.WaitForConsensusCompletion(5 * time.Second)
 
+	// Allow time for all commit events from initial round to be recorded
+	time.Sleep(200 * time.Millisecond)
+
+	// CRITICAL: Record event count BEFORE partition for safety check
+	// This must be done before partitioning to accurately measure commits during partition
+	eventCountBeforePartition := len(tracer.GetEvents())
+	t.Logf("Event count before partition: %d", eventCountBeforePartition)
+
 	// Create a split: Partition nodes 3 and 4 from the rest
 	// Group A: Nodes 0, 1, 2 (3 nodes - can still reach quorum with 4 votes needed: NO)
 	// Group B: Nodes 3, 4 (2 nodes - cannot reach quorum)
@@ -124,17 +132,20 @@ func TestSplitBrainScenario(t *testing.T) {
 		t.Logf("Partitioned Node%d", nodeID)
 	}
 
-	// Record views before the split takes effect
+	// Record views after partition is established
 	viewsBefore := make(map[types.NodeID]types.ViewNumber)
 	for nodeID, node := range nodes {
 		viewsBefore[nodeID] = node.GetCoordinator().GetCurrentView()
 	}
-	t.Logf("Views before split effect: %v", viewsBefore)
+	t.Logf("Views at partition start: %v", viewsBefore)
 
 	// Wait for timeouts to occur
 	timeout := consensusConfig.GetTimeoutForView(0)
 	t.Logf("Waiting for split-brain effects (%v)", timeout*2)
 	time.Sleep(timeout * 2)
+
+	// SAFETY CHECK: No commits should occur during partition (neither group has quorum)
+	AssertNoNewCommitsDuring(t, tracer, eventCountBeforePartition, "split-brain partition phase")
 
 	// Check the state of both groups
 	t.Log("Checking state after split:")
@@ -199,6 +210,10 @@ func TestSplitBrainScenario(t *testing.T) {
 		assert.GreaterOrEqual(t, uint64(view), uint64(maxView)-1,
 			"Node%d should be at or near max view %d", nodeID, maxView)
 	}
+
+	// LIVENESS & SAFETY: Verify commits occurred and all nodes agree
+	// After partition heal, nodes should have committed at least the initial block
+	AssertLivenessWithCommits(t, tracer, "split-brain recovery")
 
 	t.Log("=== Split Brain Scenario Test Complete ===")
 }
@@ -401,6 +416,10 @@ func TestConsensusResumeAfterPartition(t *testing.T) {
 	assert.LessOrEqual(t, uint64(viewDiff), uint64(2),
 		"Nodes should be within 2 views of each other after recovery")
 
+	// LIVENESS & SAFETY: Verify commits occurred and all nodes agree on chain
+	// The first round should have committed before partition, verify agreement
+	AssertLivenessWithCommits(t, tracer, "consensus resume after partition")
+
 	t.Log("=== Consensus Resume After Partition Test Complete ===")
 }
 
@@ -499,6 +518,9 @@ func TestExtendedPartitionRecovery(t *testing.T) {
 	t.Logf("State sync completed events for Node%d: %d", partitionedNode, syncEvents)
 	assert.GreaterOrEqual(t, syncEvents, 1,
 		"Partitioned node should have completed state sync")
+
+	// LIVENESS & SAFETY: Verify commits occurred and all nodes agree after recovery
+	AssertLivenessWithCommits(t, tracer, "extended partition recovery")
 
 	t.Log("=== Extended Partition Recovery Test Complete ===")
 }

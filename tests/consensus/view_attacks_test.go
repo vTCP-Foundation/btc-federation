@@ -95,6 +95,10 @@ func TestFalseTimeoutAttack(t *testing.T) {
 	assert.LessOrEqual(t, viewChangeEvents, 2,
 		"Single Byzantine node rapid partitioning should not cause excessive view changes")
 
+	// LIVENESS & SAFETY: Verify commits occurred and all nodes agree
+	// System should maintain liveness despite false timeout attempts
+	AssertLivenessWithCommits(t, tracer, "false timeout attack")
+
 	t.Log("=== False Timeout Test Complete ===")
 }
 
@@ -279,6 +283,10 @@ func TestLeaderDisruptionAttack(t *testing.T) {
 	assert.GreaterOrEqual(t, rejections, totalNodes-2,
 		"Unauthorized proposals should be rejected by honest nodes")
 
+	// LIVENESS & SAFETY: Verify legitimate leader's proposal was committed
+	// System should maintain liveness despite unauthorized proposal attempts
+	AssertLivenessWithCommits(t, tracer, "leader disruption attack")
+
 	t.Log("=== Leader Disruption Test Complete ===")
 }
 
@@ -390,6 +398,10 @@ func TestResourceExhaustionAttack(t *testing.T) {
 
 	assert.Equal(t, totalNodes, responsiveNodes,
 		"All nodes should remain responsive after exhaustion attack")
+
+	// LIVENESS & SAFETY: Verify commits occurred and all nodes agree
+	// System should maintain liveness despite resource exhaustion attempts
+	AssertLivenessWithCommits(t, tracer, "resource exhaustion attack")
 
 	t.Log("=== Resource Exhaustion Test Complete ===")
 }

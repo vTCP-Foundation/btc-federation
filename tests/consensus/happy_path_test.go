@@ -138,7 +138,7 @@ func TestConsensusFlow(t *testing.T) {
 
 	// Sequential Protocol Validation
 	t.Log("\n=== Sequential Protocol Validation ===")
-	result := testinglib.ValidateSequentialEvents(expectedSequence, allEvents)
+	result := testinglib.ValidateSequentialEvents(expectedSequence, allEvents, totalNodes)
 
 	// Print detailed validation report
 	printSequentialValidationReport(t, result)
@@ -493,7 +493,7 @@ func TestEventValidation(t *testing.T) {
 	// Use sequential validation instead of the old rule-based system
 	t.Log("\nValidating protocol compliance...")
 	expectedSequence := testinglib.BuildCompleteHappyPathSequence(totalNodes, 0)
-	result := testinglib.ValidateSequentialEvents(expectedSequence, allEvents)
+	result := testinglib.ValidateSequentialEvents(expectedSequence, allEvents, totalNodes)
 
 	if result.Success {
 		t.Log("✓ Perfect protocol compliance - all events validated")

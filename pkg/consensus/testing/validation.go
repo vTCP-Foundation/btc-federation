@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"btc-federation/pkg/consensus/events"
+	"btc-federation/pkg/consensus/types"
 )
 
 // ExpectedEventSequence defines a single expected event in the consensus protocol sequence
@@ -40,8 +41,9 @@ type ValidationResult struct {
 	Success          bool                          // Whether all validations passed
 }
 
-// ValidateSequentialEvents validates that the actual events match the expected sequence with role constraints
-func ValidateSequentialEvents(expectedSequence []ExpectedEventSequence, actualEvents []events.ConsensusEvent) ValidationResult {
+// ValidateSequentialEvents validates that the actual events match the expected sequence with role constraints.
+// nodeCount is required to properly calculate leader rotation (leader = view % nodeCount).
+func ValidateSequentialEvents(expectedSequence []ExpectedEventSequence, actualEvents []events.ConsensusEvent, nodeCount int) ValidationResult {
 	result := ValidationResult{
 		TotalExpected:    len(expectedSequence),
 		TotalFound:       0,
@@ -60,9 +62,9 @@ func ValidateSequentialEvents(expectedSequence []ExpectedEventSequence, actualEv
 	// Validate each expected event
 	for _, expected := range expectedSequence {
 		eventsOfType := eventIndex[expected.EventType]
-		
+
 		// Filter events by role and node constraints
-		matchingEvents := filterEventsByRoleConstraints(eventsOfType, expected)
+		matchingEvents := filterEventsByRoleConstraints(eventsOfType, expected, nodeCount)
 		
 		if len(matchingEvents) == 0 {
 			// No events matching role constraints found
@@ -111,8 +113,9 @@ func ValidateSequentialEvents(expectedSequence []ExpectedEventSequence, actualEv
 	return result
 }
 
-// filterEventsByRoleConstraints filters events based on NodeRole and NodeID constraints
-func filterEventsByRoleConstraints(eventList []events.ConsensusEvent, expected ExpectedEventSequence) []events.ConsensusEvent {
+// filterEventsByRoleConstraints filters events based on NodeRole and NodeID constraints.
+// nodeCount is required for proper leader calculation.
+func filterEventsByRoleConstraints(eventList []events.ConsensusEvent, expected ExpectedEventSequence, nodeCount int) []events.ConsensusEvent {
 	if len(eventList) == 0 {
 		return eventList
 	}
@@ -131,15 +134,14 @@ func filterEventsByRoleConstraints(eventList []events.ConsensusEvent, expected E
 		// Check NodeRole constraint
 		switch expected.NodeRole {
 		case "Leader":
-			// For leader events, we need to determine if this node was the leader for this view
-			// For now, we'll use a simple calculation: leader = view % nodeCount
-			// This assumes the event has view information or we calculate from nodeID
-			if isNodeLeaderForEvent(event) {
+			// For leader events, determine if this node was the leader for this view
+			// Uses round-robin: leader = view % nodeCount
+			if isNodeLeaderForEvent(event, nodeCount) {
 				filtered = append(filtered, event)
 			}
 		case "Validator":
 			// For validator events, exclude the leader
-			if !isNodeLeaderForEvent(event) {
+			if !isNodeLeaderForEvent(event, nodeCount) {
 				filtered = append(filtered, event)
 			}
 		case "All":
@@ -155,13 +157,49 @@ func filterEventsByRoleConstraints(eventList []events.ConsensusEvent, expected E
 }
 
 // isNodeLeaderForEvent determines if the node that emitted this event was the leader
-// This is a simplified implementation that assumes view 0 and uses node 0 as leader
-// In a full implementation, this would need to access view information from the event
-func isNodeLeaderForEvent(event events.ConsensusEvent) bool {
-	// Simple implementation: assume view 0, node 0 is leader
-	// Note: This calculation is simplified for testing purposes. A more sophisticated 
-	// implementation would extract view numbers from event metadata and calculate 
-	// leadership based on actual consensus view rotation algorithms (e.g., round-robin).
-	// The current approach provides sufficient accuracy for happy path validation.
-	return event.NodeID == 0
+// for the view in which the event occurred. Uses round-robin leader rotation.
+//
+// STRICT: All consensus events MUST include "view" in their payload.
+// This ensures event emission is correct and prevents silent drift.
+func isNodeLeaderForEvent(event events.ConsensusEvent, nodeCount int) bool {
+	// Extract view from event payload - strictly required
+	viewRaw, hasView := event.Payload["view"]
+	if !hasView {
+		panic(fmt.Sprintf(
+			"EVENT VALIDATION ERROR: event %s from node %d missing 'view' in payload - "+
+				"all consensus events must include view for proper leader/validator role detection. "+
+				"Payload keys: %v",
+			event.EventType, event.NodeID, getPayloadKeys(event.Payload)))
+	}
+
+	// Handle different view number representations
+	var view types.ViewNumber
+	switch v := viewRaw.(type) {
+	case types.ViewNumber:
+		view = v
+	case uint64:
+		view = types.ViewNumber(v)
+	case int:
+		view = types.ViewNumber(v)
+	case int64:
+		view = types.ViewNumber(v)
+	default:
+		panic(fmt.Sprintf(
+			"EVENT VALIDATION ERROR: event %s from node %d has 'view' with unexpected type %T (value: %v) - "+
+				"expected types.ViewNumber or numeric type",
+			event.EventType, event.NodeID, viewRaw, viewRaw))
+	}
+
+	// Calculate leader for this view using round-robin rotation
+	leader := int(view) % nodeCount
+	return int(event.NodeID) == leader
+}
+
+// getPayloadKeys returns the keys present in an event payload for debugging.
+func getPayloadKeys(payload map[string]interface{}) []string {
+	keys := make([]string, 0, len(payload))
+	for k := range payload {
+		keys = append(keys, k)
+	}
+	return keys
 }

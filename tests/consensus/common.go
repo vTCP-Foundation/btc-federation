@@ -2,6 +2,10 @@ package consensus
 
 import (
 	"fmt"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"btc-federation/pkg/consensus/events"
 	"btc-federation/pkg/consensus/integration"
@@ -137,4 +141,169 @@ func CreateTestNetworkWithStorages(nodeCount int, tracer events.EventTracer, ena
 		Config:         consensusConfig,
 		Storages:       mockStorages,
 	}, nil
+}
+
+// =============================================================================
+// Commit Verification Helpers for Liveness Testing
+// =============================================================================
+
+// CommittedBlockInfo holds info about a committed block from events.
+type CommittedBlockInfo struct {
+	Hash   types.BlockHash
+	Height types.Height
+	NodeID types.NodeID
+}
+
+// CollectCommittedBlocks extracts committed block info from event tracer.
+func CollectCommittedBlocks(tracer *mocks.ConsensusEventTracer) []CommittedBlockInfo {
+	var committed []CommittedBlockInfo
+	allEvents := tracer.GetEventsByType(events.EventBlockCommitted)
+
+	for _, event := range allEvents {
+		payload := event.Payload
+		if hash, ok := payload["block_hash"].(types.BlockHash); ok {
+			height, _ := payload["height"].(types.Height)
+			committed = append(committed, CommittedBlockInfo{
+				Hash:   hash,
+				Height: height,
+				NodeID: types.NodeID(event.NodeID),
+			})
+		}
+	}
+	return committed
+}
+
+// CollectCommitsAfterCount collects commits that occurred after a certain event count.
+// Useful for measuring commits during a specific test phase.
+func CollectCommitsAfterCount(tracer *mocks.ConsensusEventTracer, afterCount int) []CommittedBlockInfo {
+	var committed []CommittedBlockInfo
+	allEvents := tracer.GetEvents()
+
+	for i, event := range allEvents {
+		if i < afterCount {
+			continue
+		}
+		if event.EventType == events.EventBlockCommitted {
+			payload := event.Payload
+			if hash, ok := payload["block_hash"].(types.BlockHash); ok {
+				height, _ := payload["height"].(types.Height)
+				committed = append(committed, CommittedBlockInfo{
+					Hash:   hash,
+					Height: height,
+					NodeID: types.NodeID(event.NodeID),
+				})
+			}
+		}
+	}
+	return committed
+}
+
+// GroupCommitsByHeight groups committed blocks by height.
+// Returns a map of height -> set of unique block hashes committed at that height.
+func GroupCommitsByHeight(commits []CommittedBlockInfo) map[types.Height]map[types.BlockHash]bool {
+	heightToHashes := make(map[types.Height]map[types.BlockHash]bool)
+	for _, block := range commits {
+		if heightToHashes[block.Height] == nil {
+			heightToHashes[block.Height] = make(map[types.BlockHash]bool)
+		}
+		heightToHashes[block.Height][block.Hash] = true
+	}
+	return heightToHashes
+}
+
+// AssertCommitAgreement verifies that all commits at each height agree on the same block.
+// This is a core safety property of BFT consensus.
+func AssertCommitAgreement(t *testing.T, commits []CommittedBlockInfo) {
+	t.Helper()
+	heightToHashes := GroupCommitsByHeight(commits)
+
+	for height, hashes := range heightToHashes {
+		hashCount := len(hashes)
+		if hashCount > 1 {
+			t.Logf("SAFETY VIOLATION: Height %d has %d different committed blocks:", height, hashCount)
+			for hash := range hashes {
+				t.Logf("  - Block %x", hash[:8])
+			}
+		}
+		assert.Equal(t, 1, hashCount,
+			"SAFETY VIOLATION: Multiple different blocks committed at height %d", height)
+	}
+}
+
+// AssertLivenessWithCommits verifies both liveness (commits occurred) and safety (commits agree).
+// This is the primary assertion for Byzantine fault tolerance tests.
+func AssertLivenessWithCommits(t *testing.T, tracer *mocks.ConsensusEventTracer, description string) {
+	t.Helper()
+	commits := CollectCommittedBlocks(tracer)
+
+	// LIVENESS: At least one commit must have occurred
+	require.Greater(t, len(commits), 0,
+		"LIVENESS VIOLATION [%s]: No commits occurred - system failed to make progress", description)
+
+	// SAFETY: All commits must agree
+	AssertCommitAgreement(t, commits)
+
+	t.Logf("Liveness verified [%s]: %d commit events, all in agreement", description, len(commits))
+}
+
+// AssertLivenessAfterByzantine verifies liveness and safety after Byzantine behavior.
+// Checks that honest nodes committed blocks and all agree on the same chain.
+// minExpectedHeight is the minimum height that should have been committed.
+func AssertLivenessAfterByzantine(t *testing.T, tracer *mocks.ConsensusEventTracer, minExpectedHeight types.Height, description string) {
+	t.Helper()
+	commits := CollectCommittedBlocks(tracer)
+	heightToHashes := GroupCommitsByHeight(commits)
+
+	// LIVENESS: Commits must have occurred
+	require.Greater(t, len(commits), 0,
+		"LIVENESS VIOLATION [%s]: No commits occurred despite Byzantine tolerance", description)
+
+	// LIVENESS: Expected height must have been reached
+	maxCommittedHeight := types.Height(0)
+	for height := range heightToHashes {
+		if height > maxCommittedHeight {
+			maxCommittedHeight = height
+		}
+	}
+	require.GreaterOrEqual(t, maxCommittedHeight, minExpectedHeight,
+		"LIVENESS VIOLATION [%s]: Expected commits at height >= %d, got max height %d",
+		description, minExpectedHeight, maxCommittedHeight)
+
+	// SAFETY: All commits must agree at each height
+	AssertCommitAgreement(t, commits)
+
+	t.Logf("Byzantine liveness verified [%s]: max committed height %d, all heights in agreement",
+		description, maxCommittedHeight)
+}
+
+// AssertNoNewCommitsDuring verifies that no new commits occurred during a partition/attack.
+// Takes the event count before the phase and verifies no commits after that point.
+func AssertNoNewCommitsDuring(t *testing.T, tracer *mocks.ConsensusEventTracer, eventCountBefore int, description string) {
+	t.Helper()
+	newCommits := CollectCommitsAfterCount(tracer, eventCountBefore)
+
+	assert.Equal(t, 0, len(newCommits),
+		"SAFETY VIOLATION [%s]: %d commits occurred when none should have (e.g., during partition without quorum)",
+		description, len(newCommits))
+}
+
+// AssertHonestNodesCommitted verifies that commits from honest nodes (excluding Byzantine node) all agree.
+func AssertHonestNodesCommitted(t *testing.T, commits []CommittedBlockInfo, byzantineNode types.NodeID, description string) {
+	t.Helper()
+
+	// Filter to only honest node commits
+	var honestCommits []CommittedBlockInfo
+	for _, c := range commits {
+		if c.NodeID != byzantineNode {
+			honestCommits = append(honestCommits, c)
+		}
+	}
+
+	require.Greater(t, len(honestCommits), 0,
+		"LIVENESS VIOLATION [%s]: No commits from honest nodes", description)
+
+	AssertCommitAgreement(t, honestCommits)
+
+	t.Logf("Honest node commits verified [%s]: %d commits from honest nodes, all in agreement",
+		description, len(honestCommits))
 }

@@ -172,6 +172,10 @@ func TestCoordinatedByzantine(t *testing.T) {
 		t.Logf("Byzantine node sync: %v", err)
 	}
 
+	// 5. LIVENESS & SAFETY: Verify honest nodes committed blocks and agree on chain
+	commits := CollectCommittedBlocks(tracer)
+	AssertHonestNodesCommitted(t, commits, byzantineNode, "coordinated Byzantine attack")
+
 	t.Log("=== Coordinated Byzantine Test Complete ===")
 }
 
@@ -336,13 +340,21 @@ func TestAdaptiveAttackRecovery(t *testing.T) {
 	assert.LessOrEqual(t, viewSpread, types.ViewNumber(3),
 		"Honest nodes should maintain view consistency despite adaptive attack")
 
-	// System should have made some progress
+	// System should have made some progress (view-based check)
 	assert.Greater(t, maxView, types.ViewNumber(0),
 		"System should have made progress despite attacks")
 
 	// ASSERTION: Invalid votes must be rejected
 	assert.Error(t, invalidVoteErr,
 		"Invalid vote with wrong phase must be rejected")
+
+	// LIVENESS & SAFETY: Verify honest nodes committed blocks and agree on chain
+	commits := CollectCommittedBlocks(tracer)
+	AssertHonestNodesCommitted(t, commits, byzantineNode, "adaptive attack recovery")
+
+	// Verify commits actually occurred (not just counted)
+	require.Greater(t, commitEvents, 0,
+		"LIVENESS VIOLATION: No commit events despite system making 'progress'")
 
 	t.Log("=== Adaptive Attack Recovery Test Complete ===")
 }

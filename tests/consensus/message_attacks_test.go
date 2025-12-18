@@ -179,12 +179,15 @@ func TestMessageReplayAttack(t *testing.T) {
 	assert.GreaterOrEqual(t, viewAfter, currentView,
 		"View should not regress after replay attack")
 
-	// ASSERTION: Stale vote must be either rejected with error or not affect consensus
-	// If no error, the vote was silently ignored - verify no state corruption
-	if staleVoteErr == nil {
-		assert.GreaterOrEqual(t, viewAfter, currentView,
-			"Silently ignored stale vote must not corrupt consensus state")
-	}
+	// ASSERTION: Stale vote MUST be rejected (not silently ignored)
+	// Silent ignoring could mask a regression where stale votes are accidentally processed
+	require.Error(t, staleVoteErr,
+		"Stale vote from old view MUST be explicitly rejected, not silently ignored")
+	t.Logf("Stale vote correctly rejected: %v", staleVoteErr)
+
+	// LIVENESS & SAFETY: Verify commits occurred and all nodes agree
+	// System must maintain liveness despite replay attempts
+	AssertLivenessWithCommits(t, tracer, "message replay attack")
 
 	t.Log("=== Message Replay Test Complete ===")
 }
@@ -278,6 +281,16 @@ func TestMessageReorderingAttack(t *testing.T) {
 	currentView := nodes[leader].GetCoordinator().GetCurrentView()
 	t.Logf("Current view after reordering: %d", currentView)
 
+	// ASSERTION: Out-of-order vote must be rejected or handled safely
+	// The system should not accept a PreCommit vote without proper Prepare phase
+	require.Error(t, err,
+		"Out-of-order PreCommit vote (skipping Prepare) MUST be rejected")
+	t.Logf("Out-of-order vote correctly rejected: %v", err)
+
+	// LIVENESS & SAFETY: Verify commits occurred and all nodes agree
+	// System must maintain liveness despite reordering attempts
+	AssertLivenessWithCommits(t, tracer, "message reordering attack")
+
 	t.Log("=== Message Reordering Test Complete ===")
 }
 
@@ -356,9 +369,13 @@ func TestTimingAttack(t *testing.T) {
 	t.Logf("Timeout events: %d", timeoutEvents)
 	t.Logf("Commit events: %d", commitEvents)
 
-	// The system should either commit or timeout, but remain functional
-	assert.True(t, commitEvents > 0 || timeoutEvents > 0,
-		"System should either commit or timeout despite timing attack")
+	// LIVENESS: System MUST commit despite timing attack (not just timeout)
+	// With n=5 and f=1, delaying one node should not prevent consensus
+	require.Greater(t, commitEvents, 0,
+		"LIVENESS VIOLATION: System should commit despite timing attack on single node")
+
+	// SAFETY: All commits must agree on the same block
+	AssertLivenessWithCommits(t, tracer, "timing attack")
 
 	t.Log("=== Timing Attack Test Complete ===")
 }
@@ -469,7 +486,11 @@ func TestFloodingAttack(t *testing.T) {
 	}
 
 	assert.Equal(t, totalNodes, responsiveNodes,
-		"All nodes should remain responsive after exhaustion attack")
+		"All nodes should remain responsive after flooding attack")
+
+	// LIVENESS & SAFETY: Verify commits occurred and all nodes agree
+	// System must maintain liveness despite flooding attempts
+	AssertLivenessWithCommits(t, tracer, "flooding attack")
 
 	t.Log("=== Flooding Attack Test Complete ===")
 }

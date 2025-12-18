@@ -390,3 +390,154 @@ func TestQCPhaseTransitionValidation(t *testing.T) {
 
 	t.Log("=== QC Phase Transition Validation Test PASSED ===")
 }
+
+// TestSplitBrainSafety verifies the critical split-brain safety properties:
+// 1. No commits occur in either partition when neither has quorum
+// 2. All nodes converge to the same committed chain after partition heals
+func TestSplitBrainSafety(t *testing.T) {
+	t.Parallel()
+	const totalNodes = 5
+	t.Log("=== Safety Test: Split-Brain Safety Properties ===")
+
+	tracer := mocks.NewConsensusEventTracer()
+	result, err := CreateTestNetworkWithStorages(totalNodes, tracer, false)
+	require.NoError(t, err)
+	defer result.NetworkManager.StopAll()
+
+	nodes := result.Nodes
+	config := result.Config
+
+	helpers := testinglib.NewViewChangeTestHelpers(nodes, result.NetworkManager, tracer, config)
+	helpers.SetStorages(result.Storages)
+
+	// Step 1: Run initial consensus to establish a committed block
+	leader, err := config.GetLeaderForView(0)
+	require.NoError(t, err)
+	t.Logf("Running initial consensus with leader Node%d", leader)
+
+	err = nodes[leader].ProposeBlock([]byte("pre_partition_block"))
+	require.NoError(t, err)
+	helpers.WaitForQuorumCommits(5 * time.Second)
+
+	// Record committed blocks BEFORE partition
+	committedBefore := collectCommittedBlocksFromTracer(tracer)
+	commitCountBefore := len(committedBefore)
+	t.Logf("Commits before partition: %d events", commitCountBefore)
+
+	// Collect unique block hashes at each height before partition
+	heightToHashBefore := make(map[types.Height]types.BlockHash)
+	for _, block := range committedBefore {
+		if _, exists := heightToHashBefore[block.Height]; !exists {
+			heightToHashBefore[block.Height] = block.Hash
+		}
+	}
+	t.Logf("Committed heights before partition: %v", getHeights(heightToHashBefore))
+
+	// Step 2: Create a TRUE split-brain partition
+	// With n=5 and quorum=4, split into:
+	// - Group A: Nodes 0, 1, 2 (3 nodes - cannot reach quorum)
+	// - Group B: Nodes 3, 4 (2 nodes - cannot reach quorum)
+	// NEITHER group can commit!
+	groupB := []types.NodeID{types.NodeID(3), types.NodeID(4)}
+
+	t.Log("Creating split-brain partition:")
+	t.Logf("  Group A: Nodes 0, 1, 2 (3 nodes, need 4 for quorum)")
+	t.Logf("  Group B: Nodes 3, 4 (2 nodes, need 4 for quorum)")
+
+	for _, nodeID := range groupB {
+		err = helpers.BlockNode(nodeID)
+		require.NoError(t, err)
+	}
+
+	// Step 3: Wait during partition - neither group should be able to commit
+	timeout := config.GetTimeoutForView(0)
+	partitionDuration := timeout * 2
+	t.Logf("Partition active for %v - neither group should commit", partitionDuration)
+
+	time.Sleep(partitionDuration)
+
+	// Step 4: CRITICAL ASSERTION - No new commits during partition
+	committedDuring := collectCommittedBlocksFromTracer(tracer)
+	commitCountDuring := len(committedDuring)
+	newCommitsDuringPartition := commitCountDuring - commitCountBefore
+
+	t.Logf("Commits after partition period: %d events (new: %d)", commitCountDuring, newCommitsDuringPartition)
+
+	// SAFETY ASSERTION: No commits should occur when neither partition has quorum
+	assert.Equal(t, 0, newCommitsDuringPartition,
+		"SAFETY VIOLATION: Commits occurred during split-brain when neither partition had quorum")
+
+	// Step 5: Heal the partition
+	t.Log("Healing partition...")
+	for _, nodeID := range groupB {
+		err = helpers.UnblockNode(nodeID)
+		require.NoError(t, err)
+		err = helpers.SyncNodeState(nodeID)
+		require.NoError(t, err)
+	}
+
+	// Wait for network to reconverge
+	time.Sleep(timeout + time.Second)
+
+	// Step 6: CRITICAL ASSERTION - Single-chain convergence post-heal
+	t.Log("Verifying single-chain convergence after partition heal...")
+
+	// Collect committed blocks from each node's block tree
+	nodeCommittedBlocks := make(map[types.NodeID]map[types.Height]types.BlockHash)
+	for nodeID, node := range nodes {
+		nodeCommittedBlocks[nodeID] = make(map[types.Height]types.BlockHash)
+		blockTree := node.GetConsensus().GetBlockTree()
+		committed := blockTree.GetCommitted()
+		if committed != nil {
+			nodeCommittedBlocks[nodeID][committed.Height] = committed.Hash
+			t.Logf("Node%d committed block: height=%d hash=%x", nodeID, committed.Height, committed.Hash[:8])
+		}
+	}
+
+	// Verify all nodes agree on committed block at each height
+	heightToHashes := make(map[types.Height]map[types.BlockHash]bool)
+	for _, blocks := range nodeCommittedBlocks {
+		for height, hash := range blocks {
+			if heightToHashes[height] == nil {
+				heightToHashes[height] = make(map[types.BlockHash]bool)
+			}
+			heightToHashes[height][hash] = true
+		}
+	}
+
+	// SAFETY ASSERTION: Single chain - only one block per height across all nodes
+	for height, hashes := range heightToHashes {
+		hashCount := len(hashes)
+		if hashCount > 1 {
+			t.Logf("SAFETY VIOLATION at height %d: %d different blocks committed:", height, hashCount)
+			for hash := range hashes {
+				t.Logf("  - Block %x", hash[:8])
+			}
+		}
+		assert.Equal(t, 1, hashCount,
+			"SAFETY VIOLATION: Nodes committed different blocks at height %d after partition heal", height)
+	}
+
+	// Verify the chain matches what was committed before partition
+	for height, hashBefore := range heightToHashBefore {
+		if hashesAfter, exists := heightToHashes[height]; exists {
+			for hashAfter := range hashesAfter {
+				assert.Equal(t, hashBefore, hashAfter,
+					"SAFETY VIOLATION: Committed block at height %d changed after partition heal", height)
+			}
+		}
+	}
+
+	t.Log("=== Split-Brain Safety Test PASSED ===")
+	t.Log("  ✓ No commits during partition (neither group had quorum)")
+	t.Log("  ✓ Single-chain convergence after partition healed")
+}
+
+// getHeights extracts height keys from a map for logging.
+func getHeights(m map[types.Height]types.BlockHash) []types.Height {
+	heights := make([]types.Height, 0, len(m))
+	for h := range m {
+		heights = append(heights, h)
+	}
+	return heights
+}

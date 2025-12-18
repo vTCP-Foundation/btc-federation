@@ -611,5 +611,10 @@ func TestEquivocationTriggersViewChange(t *testing.T) {
 	assert.Greater(t, uint64(maxView), uint64(initialView),
 		"View should advance after timeout with Byzantine leader")
 
+	// LIVENESS & SAFETY: Verify honest nodes can still commit despite Byzantine leader
+	// After view change, honest nodes should be able to make progress
+	commits := CollectCommittedBlocks(tracer)
+	AssertHonestNodesCommitted(t, commits, leader, "Byzantine leader equivocation")
+
 	t.Log("=== Triggers View Change Test Complete ===")
 }
